@@ -9,15 +9,14 @@ The general schema for this project is as follows:
 <img src="media/connector_schema.png" />
 
 As shown in the schema, the project is composed of two main components:
-- A python API to emulate radio control inputs
-- A python API to obtain drone camera images from LiftOff
+- A python API to emulate radio control inputs (VirtualGamepad.py)
+- A python API to obtain drone camera images from LiftOff (VideoSampler.py)
 
 In-game drone camera images are directly sampled from steam using pyautogui library and converted to tensors
-to be used as input for the AI agent. AI agent actions are mapped to the radio control inputs using the uinput python library.
+to be used as input for the AI agent. AI agent actions are mapped to the radio control inputs using the [uinput](https://pypi.org/project/python-uinput/#files) python library.
 As a consequence the gym-liftoff-connector serves a intermediate component interfacing with both: LiftOff game and the AI external Agent.
 We build an Open AI Gym environment on top of the connector to make it more homogeneous with standard reinforcement learning APIs while following the conventions of openAI gym.
 
-uvdev
 
 ## Documentation and examples
 
@@ -139,16 +138,36 @@ Event code 4 (MSC_SCAN)
 ```
 
 Out of all these possible events, we are mainly interested in the following ones:
-1) Throttle
-2) Yaw
-3) Pitch
-4) Roll
+1) Throttle     -> mapped to  ABS_X
+2) Yaw          -> mapped to  ABS_Y
+3) Roll         -> mapped to  ABS_Z
+4) Pitch        -> mapped to  ABS_RX   
 
 Lift Off Drone simulator must be configured in order to assign this channels to the correct outputs of uinput events.
+Debugging can be made using VirtualGamepad.py class directly, e.g.:
 
+```python
+sudo PYTHONPATH=. python3 -i gym-liftoff/gym_liftoff/main/VirtualGamepad.py
 
+device.emit(uinput.ABS_Y, 0)      # Zero ABS_Y
+device.emit(uinput.ABS_Y, 2047)   # Max ABS_Y
+device.emit(uinput.ABS_X, 0)      # Zero ABS_X
+device.emit(uinput.ABS_X, 2047)   # Max ABS_X
+```
 
- 
+Steam controller configurations can be used to verify the correct mapping:
+
+<img src="media/steam_controller_conf_1.png" />
+
+we obtain yaw movement by emitting ABS_X events, and throttle by emitting ABS_Y events.
+
+<img src="media/steam_controller_conf_2_EMIT_ABS_X.png" />
+
+Lift Off in-game controller configuration can also be used to verify the correct mapping:
+
+<img src="media/LiftOff_controller_fine_tunning.png" />
+
+We recommend living a 0.10 margin for deadband in the controller configuration.
 
 # Contributions
 
