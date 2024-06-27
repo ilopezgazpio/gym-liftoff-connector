@@ -52,6 +52,11 @@ events = (
 )
 
 class VirtualGamepad:
+
+    action_map = {
+        ""
+        }
+
     def __init__(self):
         self.device = uinput.Device(
             events,
@@ -63,20 +68,20 @@ class VirtualGamepad:
 
 
     def throttle(self, value):
-        stick = uinput.ABS_X
+        stick = uinput.ABS_Y
         self.__emit__(stick, value)
 
     def zeroThrottle(self):
-        self.throttle(0)
+        self.throttle(2047)
 
     def centerThrottle(self):
         self.throttle(2047 // 2)
 
     def fullThrottle(self):
-        self.throttle(2047)
+        self.throttle(0)
 
     def yaw(self, value):
-        stick = uinput.ABS_Y
+        stick = uinput.ABS_X
         self.__emit__(stick, value)
 
     def zeroYaw(self):
@@ -89,7 +94,7 @@ class VirtualGamepad:
         self.yaw(2047)
 
     def roll(self, value):
-        stick = uinput.ABS_Z
+        stick = uinput.ABS_RX
         self.__emit__(stick, value)
 
     def zeroRoll(self):
@@ -102,23 +107,27 @@ class VirtualGamepad:
         self.roll(2047)
 
     def pitch(self, value):
-        stick = uinput.ABS_RX
+        stick = uinput.ABS_RY
         self.__emit__(stick, value)
 
     def zeroPitch(self):
-        self.pitch(0)
+        self.pitch(2047)
 
     def centerPitch(self):
         self.pitch(2047 // 2)
 
     def fullPitch(self):
-        self.pitch(2047)
+        self.pitch(0)
 
-
-
+    def centerAll(self):
+        self.zeroThrottle()
+        self.centerYaw()
+        self.centerRoll()
+        self.centerPitch()
 
 
     def __emit__(self, event, value):
+        time.sleep(2)
         self.device.emit(event, value)
 
 
@@ -132,6 +141,36 @@ class VirtualGamepad:
 
 if __name__ == '__main__':
     device = VirtualGamepad()
+
+    # #wait for controller to be ready
+    # time.sleep(5)
+    # # Start throttle
+    # device.throttle(0)
+    # time.sleep(2)
+    # device.throttle(2047)
+    # time.sleep(2)
+    # device.throttle(0)
+    # time.sleep(2)
+    # device.throttle(2047)
+
+    # # Start yaw
+    # device.yaw(0)
+    # time.sleep(2)
+    # device.yaw(2047)
+    # time.sleep(2)
+
+    # # Start roll
+    # device.roll(0)
+    # time.sleep(2)
+    # device.roll(2047)
+    # time.sleep(2)
+
+    # # Start pitch
+    # device.pitch(0)
+    # time.sleep(2)
+    # device.pitch(2047)
+    # time.sleep(2)
+
 
     '''
     device.emit(uinput.BTN_TR, 1)

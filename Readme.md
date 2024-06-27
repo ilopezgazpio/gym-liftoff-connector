@@ -138,10 +138,10 @@ Event code 4 (MSC_SCAN)
 ```
 
 Out of all these possible events, we are mainly interested in the following ones:
-1) Throttle     -> mapped to  ABS_X
-2) Yaw          -> mapped to  ABS_Y
-3) Roll         -> mapped to  ABS_Z
-4) Pitch        -> mapped to  ABS_RX   
+1) Throttle     -> mapped to  ABS_Y
+2) Yaw          -> mapped to  ABS_X
+3) Roll         -> mapped to  ABS_RX
+4) Pitch        -> mapped to  ABS_RY   
 
 Lift Off Drone simulator must be configured in order to assign this channels to the correct outputs of uinput events.
 Debugging can be made using VirtualGamepad.py class directly, e.g.:
