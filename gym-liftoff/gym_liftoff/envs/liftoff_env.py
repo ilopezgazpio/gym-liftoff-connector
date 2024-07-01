@@ -98,6 +98,7 @@ class Liftoff(gym.Env):
         pyautogui.press('r')
         time.sleep(2)
         self.state = self.video_sampler.sample(region=(0, 0, 1920, 1080))
+        self.virtual_gamepad.reset()
         info = self._get_info()
         observation = self._get_observation()
         return (observation, info)

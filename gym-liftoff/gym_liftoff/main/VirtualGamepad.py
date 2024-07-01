@@ -72,13 +72,13 @@ class VirtualGamepad:
         self.__emit__(stick, value)
 
     def zeroThrottle(self):
-        self.throttle(2047)
+        self.throttle(0)
 
     def centerThrottle(self):
         self.throttle(2047 // 2)
 
     def fullThrottle(self):
-        self.throttle(0)
+        self.throttle(2047)
 
     def yaw(self, value):
         stick = uinput.ABS_X
@@ -119,7 +119,7 @@ class VirtualGamepad:
     def fullPitch(self):
         self.pitch(0)
 
-    def centerAll(self):
+    def reset(self):
         self.zeroThrottle()
         self.centerYaw()
         self.centerRoll()

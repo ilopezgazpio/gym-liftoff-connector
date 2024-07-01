@@ -144,6 +144,11 @@ Out of all these possible events, we are mainly interested in the following ones
 4) Pitch        -> mapped to  ABS_RY   
 
 Lift Off Drone simulator must be configured in order to assign this channels to the correct outputs of uinput events.
+To do that, use manual calibration, checking the channels that change with each command.
+1) Throttle     -> mapped to  Channel 1
+2) Yaw          -> mapped to  Channel 0
+3) Roll         -> mapped to  Channel 3
+4) Pitch        -> mapped to  Channel 4
 Debugging can be made using VirtualGamepad.py class directly, e.g.:
 
 ```python
