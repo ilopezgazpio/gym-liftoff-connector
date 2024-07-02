@@ -149,8 +149,10 @@ To do that, use manual calibration, checking the channels that change with each 
 2) Yaw          -> mapped to  Channel 0
 3) Roll         -> mapped to  Channel 3
 4) Pitch        -> mapped to  Channel 4
+
 Debugging can be made using VirtualGamepad.py class directly, e.g.:
 
+This configuration can be directly imported using the file insithe the folder liftoff_configuration. Copying it to our liftoff files in Liftoff/Liftoff_Data/InputSettings/ba2614f0-0c69-4dd6-9dac-68b2b72e1acb/ba2614f0-0c69-4dd6-9dac-68b2b72e1acb_0001.inputsettings. To reach the Liftoff folder, we can browse the local files of the game in Steam.
 ```python
 sudo PYTHONPATH=. python3 -i gym-liftoff/gym_liftoff/main/VirtualGamepad.py
 

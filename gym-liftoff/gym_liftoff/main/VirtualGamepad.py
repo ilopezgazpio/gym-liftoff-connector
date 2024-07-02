@@ -119,6 +119,13 @@ class VirtualGamepad:
     def fullPitch(self):
         self.pitch(0)
 
+    def act(self, action):
+        self.throttle(action['THROTTLE'])
+        self.yaw(action['YAW'])
+        self.roll(action['ROLL'])
+        self.pitch(action['PITCH'])
+
+
     def reset(self):
         self.zeroThrottle()
         self.centerYaw()
@@ -127,7 +134,6 @@ class VirtualGamepad:
 
 
     def __emit__(self, event, value):
-        time.sleep(2)
         self.device.emit(event, value)
 
 
