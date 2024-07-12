@@ -120,10 +120,10 @@ class VirtualGamepad:
         self.pitch(0)
 
     def act(self, action):
-        self.throttle(action['THROTTLE'])
-        self.yaw(action['YAW'])
-        self.roll(action['ROLL'])
-        self.pitch(action['PITCH'])
+        self.throttle(int(action[0]))
+        self.yaw(int(action[1]))
+        self.roll(int(action[2]))
+        self.pitch(int(action[3]))
 
 
     def reset(self):
