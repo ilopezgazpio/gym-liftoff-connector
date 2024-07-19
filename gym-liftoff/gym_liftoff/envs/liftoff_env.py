@@ -1,6 +1,6 @@
-import gym
-from gym import error, spaces, utils
-from gym.utils import seeding
+import gymnasium as gym
+from gymnasium import error, spaces, utils
+from gymnasium.utils import seeding
 import numpy as np
 from ..main import VirtualGamepad, VideoSampler
 import tkinter as tk
