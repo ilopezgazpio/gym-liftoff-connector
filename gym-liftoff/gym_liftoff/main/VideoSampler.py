@@ -11,9 +11,10 @@ import matplotlib.pyplot as plt
 
 class VideoSampler:
 
-    def __init__ (self):
+    def __init__ (self, width=1920, height=1080):
         
-        self.width, self.height = 1920, 1080
+        self.width, self.height = width, height
+        self.img_x, self.img_y = 256, 256
         self.prev_speed_1 = 0
         self.prev_speed_2 = 0
         self.prev_speed_3 = 0
@@ -34,13 +35,15 @@ class VideoSampler:
         # self.screenshot = self.screenshot.resize((1920, 1080))
 
         self.frame = np.array(self.screenshot)
-        self.state = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
+        self.frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
         # save the state
         # cv2.imwrite('state.png', self.state)
+        # reshape the state to 256
+        self.state = cv2.resize(self.frame, (256, 256))
         return self.state
     
     def get_speed(self):
-        speed_img = self.state[180:220, 1780:1870]
+        speed_img = self.frame[180:220, 1780:1870]
         # invert image
         # _, speed_img = cv2.threshold(speed_img, 254, 255, cv2.THRESH_BINARY)
         inverted_image = cv2.bitwise_not(speed_img)

@@ -39,12 +39,19 @@ class Liftoff(gym.Env):
 
     def __init__(self):
 
+        self.virtual_gamepad = VirtualGamepad.VirtualGamepad()
+
+
         self.sc_w, self.sc_h = self.__get_curr_screen_geometry__()
+        self.video_sampler = VideoSampler.VideoSampler(self.sc_w, self.sc_h)
+
+        self.render_mode = 'human'
+
         '''
         Observation space is defined as the screenshot converted to a numpy array
 
         '''
-        self.observation_space = spaces.Box(low=0, high=255, shape=(self.sc_h, self.sc_w, 1), dtype=np.uint8)
+        self.observation_space = spaces.Box(low=0, high=255, shape=(self.video_sampler.img_x, self.video_sampler.img_y, 1), dtype=np.uint8)
 
         '''
         Action space is defined as 
@@ -57,7 +64,7 @@ class Liftoff(gym.Env):
         3: Pitch
 
         '''
-        self.action_space = spaces.Box(low=0, high=1, shape=(4,), dtype=np.float32)
+        self.action_space = spaces.Box(low=0, high=2047, shape=(4,), dtype=np.int16)
 
         '''
         Environment state
@@ -65,8 +72,6 @@ class Liftoff(gym.Env):
 
         self.state = np.arange(9).reshape((3, 3))
 
-        self.virtual_gamepad = VirtualGamepad.VirtualGamepad()
-        self.video_sampler = VideoSampler.VideoSampler()
         print("Screen width: ", self.sc_w)
         print("Screen height: ", self.sc_h)
         self.consecutive_zero = 0
@@ -74,13 +79,16 @@ class Liftoff(gym.Env):
         # self.reward_model = RewardModel.RewardModel()
 
     def _get_info(self):
+        return {}
         return {
             'speed': self._get_speed(),
             'road': self.video_sampler.find_road()
         }
     
     def _get_observation(self):
-        array = np.array(self.state, dtype=np.uint8).reshape((self.sc_h, self.sc_w, 1))
+        array = np.array(self.state, dtype=np.uint8).reshape((self.video_sampler.img_x, self.video_sampler.img_y, 1))
+        # lower the resolution
+        # array = array[::2, ::2]
         if array.shape != self.observation_space.shape:
             print(array.shape)
         return array
@@ -92,14 +100,17 @@ class Liftoff(gym.Env):
         # 1 otherwise
         return 1
 
-    def step(self, action):
+    def act(self, action, from_reset=False):
+        if self.resetting and not from_reset:
+            return
+        self.virtual_gamepad.act(action)
 
+    def step(self, action):
         info = {}
 
         '''Send action to liftoff through virtual gamepad'''
-        # map the float values to the range of the gamepad as integers
-        action = (action * 2047).astype(int)
-        self.virtual_gamepad.act(action)
+
+        self.act(action)
         ''' Sample liftoff state through video sampler'''
         self.state = self.video_sampler.sample(region=(0, 0, 1920, 1080))
 
@@ -116,16 +127,19 @@ class Liftoff(gym.Env):
     def reset(self, seed=None, options=None):
         """Reset the state of the environment to an initial state"""
         #press R key on the keyboard to reset the game
-        pyautogui.press('r')
-        time.sleep(2)
+        print("Resetting the game")
+        self.resetting = True
         self.virtual_gamepad.reset()
-        time.sleep(0.5)
-        self.virtual_gamepad.act([1400, 1024, 1024, 1024])
+        pyautogui.press('r')
+        time.sleep(1.5)
+        self.virtual_gamepad.reset()
+        self.act([1400, 1024, 1024, 1024], from_reset=True)
         time.sleep(1) 
         self.time = 0
         self.state = self.video_sampler.sample(region=(0, 0, 1920, 1080))
         info = self._get_info()
         observation = self._get_observation()
+        self.resetting = False
         return (observation, info)
 
     def render(self, mode='human'):
@@ -149,5 +163,5 @@ class Liftoff(gym.Env):
     def __episode_terminated__(self):
         """Check if the episode is terminated"""
         # screen is black
-        return np.mean(self.state) < 10
+        return np.mean(self.state) < 25
 
