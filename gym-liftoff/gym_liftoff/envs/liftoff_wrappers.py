@@ -10,7 +10,7 @@ class LiftoffWrapStability(gym.RewardWrapper):
         if self.prev_obs is not None:
             reward = max(reward - 0.01 * np.mean(np.abs(self.prev_obs - self.env.unwrapped._get_observation())), 0)
         self.prev_obs = self.env.unwrapped._get_observation()
-        return reward
+        return float(reward)
 
     def reset(self, seed=None, options=None):
         self.prev_obs = None
@@ -61,5 +61,26 @@ class LiftoffWrapDiscretized(gym.ActionWrapper):
         return action
         
 
+    def reset(self, seed=None, options=None):
+        return self.env.reset(seed = seed, options = options)
+    
+
+class LiftoffWrapNormalizedActions(gym.ActionWrapper):
+    """Wrap the environment to normalize the action space to [-1, 1]
+    """
+
+    def __init__(self, env):
+        super(LiftoffWrapNormalizedActions, self).__init__(env)
+        self.action_space = gym.spaces.Box(low=-1, high=1, shape=(4,), dtype=np.float32)
+
+    def action(self, action):
+        """Each action represents a change in throttle, yaw, roll, and pitch
+        where action = (action + 1) / 2 * 2047
+        """
+        action = ((action + 1) / 2 * 2047)
+        # action = np.clip(action, 0, 2047)
+        # convert to uint16
+        return action.astype(np.uint16)
+    
     def reset(self, seed=None, options=None):
         return self.env.reset(seed = seed, options = options)

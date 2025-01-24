@@ -31,6 +31,7 @@ class VideoSampler:
 
     def sample(self, region=None):
         self.screenshot = pyautogui.screenshot(region=region)
+        
         # resize the frame to 360p
         # self.screenshot = self.screenshot.resize((1920, 1080))
 

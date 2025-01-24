@@ -51,7 +51,7 @@ class Liftoff(gym.Env):
         Observation space is defined as the screenshot converted to a numpy array
 
         '''
-        self.observation_space = spaces.Box(low=0, high=255, shape=(self.video_sampler.img_x, self.video_sampler.img_y, 1), dtype=np.uint8)
+        self.observation_space = spaces.Box(low=0, high=255, shape=(1, self.video_sampler.img_x, self.video_sampler.img_y), dtype=np.uint8)
 
         '''
         Action space is defined as 
@@ -64,7 +64,7 @@ class Liftoff(gym.Env):
         3: Pitch
 
         '''
-        self.action_space = spaces.Box(low=0, high=2047, shape=(4,), dtype=np.int16)
+        self.action_space = spaces.Box(low=0, high=2047, shape=(4,), dtype=np.uint16)
 
         '''
         Environment state
@@ -79,26 +79,24 @@ class Liftoff(gym.Env):
         # self.reward_model = RewardModel.RewardModel()
 
     def _get_info(self):
-        return {}
         return {
-            'speed': self._get_speed(),
-            'road': self.video_sampler.find_road()
+            'speed': self._get_speed()
+            # 'road': self.video_sampler.find_road()
         }
     
     def _get_observation(self):
-        array = np.array(self.state, dtype=np.uint8).reshape((self.video_sampler.img_x, self.video_sampler.img_y, 1))
+        array = np.array(self.state, dtype=np.uint8).reshape((1, self.video_sampler.img_x, self.video_sampler.img_y))
         # lower the resolution
         # array = array[::2, ::2]
-        if array.shape != self.observation_space.shape:
-            print(array.shape)
+        assert array.shape == self.observation_space.shape
         return array
 
     def _get_reward(self, action, info):
         # 0 if the game finishes
         if self.__episode_terminated__():
-            return 0
+            return float(-100)
         # 1 otherwise
-        return 1
+        return float(1 + 0.1 * info['speed'])
 
     def act(self, action, from_reset=False):
         if self.resetting and not from_reset:
@@ -112,7 +110,7 @@ class Liftoff(gym.Env):
 
         self.act(action)
         ''' Sample liftoff state through video sampler'''
-        self.state = self.video_sampler.sample(region=(0, 0, 1920, 1080))
+        self.state = self.video_sampler.sample(region=(1280, 0, 1920, 1080))
 
         # self.__episode_terminated__() ???
 
@@ -136,7 +134,7 @@ class Liftoff(gym.Env):
         self.act([1400, 1024, 1024, 1024], from_reset=True)
         time.sleep(1) 
         self.time = 0
-        self.state = self.video_sampler.sample(region=(0, 0, 1920, 1080))
+        self.state = self.video_sampler.sample(region=(1280, 0, 1920, 1080))
         info = self._get_info()
         observation = self._get_observation()
         self.resetting = False
@@ -158,10 +156,10 @@ class Liftoff(gym.Env):
             self.consecutive_zero = 0
             return number
         self.consecutive_zero += 1
-        return None
+        return 0
 
     def __episode_terminated__(self):
         """Check if the episode is terminated"""
         # screen is black
-        return np.mean(self.state) < 25
+        return np.mean(self.state) < 30
 
