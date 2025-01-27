@@ -84,3 +84,12 @@ class LiftoffWrapNormalizedActions(gym.ActionWrapper):
     
     def reset(self, seed=None, options=None):
         return self.env.reset(seed = seed, options = options)
+    
+
+class LiftoffFloatActions(gym.ActionWrapper):
+    def __init__(self, env):
+        super(LiftoffFloatActions, self).__init__(env)
+        self.action_space = gym.spaces.Box(low=0, high=2047, shape=(4,), dtype=np.float32)
+
+    def action(self, action):
+        return action

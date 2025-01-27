@@ -2,7 +2,7 @@ import threading
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-from gym_liftoff.envs.liftoff_wrappers import LiftoffWrapStability, LiftoffWrapNormalizedActions
+from gym_liftoff.envs.liftoff_wrappers import LiftoffWrapStability, LiftoffWrapNormalizedActions, LiftoffFloatActions
 import time
 import stable_baselines3 as sb3
 import matplotlib.pyplot as plt
@@ -173,7 +173,8 @@ print('Generated experience of length:', len(demo_observations))
 # set data to np arrays
 demo_observations = np.array(demo_observations)
 # transform action to [-1, 1]
-demo_actions = (np.array(demo_actions, dtype = np.float32) / 2047) * 2 - 1 
+# demo_actions = (np.array(demo_actions, dtype = np.float32) / 2047) * 2 - 1 
+demo_actions = np.array(demo_actions)
 demo_next_observations = np.array(demo_next_observations)
 demo_rewards = np.expand_dims(np.array(demo_rewards), -1)
 demo_dones = np.expand_dims(np.array(demo_dones),-1)
@@ -194,7 +195,8 @@ demo_truncateds = demo_truncateds.astype(bool)
 # Create the environment
 env = gym.make('gym_liftoff:liftoff-v0')
 env = LiftoffWrapStability(env)
-env = LiftoffWrapNormalizedActions(env)
+# env = LiftoffWrapNormalizedActions(env)
+env = LiftoffFloatActions(env)
 
 print('Observation space:', env.observation_space)
 print('Observation space sample:', env.observation_space.sample())
@@ -309,12 +311,15 @@ actions = []
 
 lock = threading.Lock()
 weights_updated = threading.Event()
+pause_event = threading.Event()
+pause_event.set()  # Start unpaused
 
 def play_game(agent, env):
     obs, _info = env.reset()
     local_policy = copy.deepcopy(agent.policy)  # Create a copy of the agent's policy
     to_add_to_buffer = []
     while not stop_training:
+        pause_event.wait()  # Wait if paused
         action, _states = local_policy.predict(obs, deterministic=True)
         
         # Ensure action is in the correct shape
@@ -333,16 +338,22 @@ def play_game(agent, env):
         # Check if weights have been updated
         if weights_updated.is_set():
             with lock:
+                print("Updating weights")
                 local_policy.load_state_dict(agent.policy.state_dict())  # Update local policy
                 if len(to_add_to_buffer) > 0:
                     for data in to_add_to_buffer:
                         agent.replay_buffer.add(*data)
                 to_add_to_buffer.clear()  # Clear the data
                 weights_updated.clear()  # Reset the event
+            
+        torch.cuda.empty_cache()
 
 def train_agent(agent):
     global stop_training
+    steps = 0
     while not stop_training:
+        steps += 1
+        pause_event.wait()  # Wait if paused
         try:
             with lock:
                 agent.train(gradient_steps=100)
@@ -350,13 +361,17 @@ def train_agent(agent):
                 if len(actions) > 0:
                     print(f"Last action: {actions[-1]}")
                 agent.save(f"/home/bee/development/gym-liftoff-connector/models/ddpg/model_latest.zip")
+                # save every 100000 steps
+                if steps % SAVE_INTERVAL == 0:
+                    agent.save(f"/home/bee/development/gym-liftoff-connector/models/ddpg/model_step_{steps}.zip")
                 weights_updated.set()  # Indicate that weights have been updated
         except Exception as e:
             print("Error during training")
             print(e)
             stop_training = True
         time.sleep(1)
-
+        # Free up unused GPU memory
+        torch.cuda.empty_cache()
 
     # global stop_training
     # steps = 0   
@@ -410,19 +425,32 @@ def listen_for_stop():
     global stop_training
     input("Press Enter to stop training...\n")
     stop_training = True
+    pause_event.set()  # Ensure that the threads are not paused when stopping
+
+def listen_for_pause():
+    while not stop_training:
+        input("Press 'p' to pause/resume training...\n")
+        if pause_event.is_set():
+            pause_event.clear()  # Pause
+        else:
+            pause_event.set()  # Resume
 
 batch_size = 64
 play_thread = threading.Thread(target=play_game, args=(agent, env))
 train_thread = threading.Thread(target=train_agent, args=(agent,))
 stop_thread = threading.Thread(target=listen_for_stop)
+pause_thread = threading.Thread(target=listen_for_pause)
+
 
 max_train_time = 60*60*24*5 # 5 days
 
 stop_thread.start()
+pause_thread.start()
 play_thread.start()
 train_thread.start()
 
 stop_thread.join()
+pause_thread.join()
 play_thread.join()
 train_thread.join()
 
