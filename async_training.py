@@ -120,7 +120,7 @@ class MixedBuffer(sb3.common.buffers.ReplayBuffer):
 #set working directory for obtaining demos
 os.chdir('/home/bee/development/gym-liftoff-connector/database/csv')  
 
-path = './RaceFlight_10FPS_ShortCircuit_SimpleQuality_2024-8-1.csv'
+path = './StableFlight_60FPS_ShortCircuit_HighQuality_2025-1-27.csv'
 df = pd.read_csv(path)
 
 # for each row in the dataframe, get (state, action, next_state, reward, terminatedm, truncated)
