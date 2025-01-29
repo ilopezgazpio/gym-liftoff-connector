@@ -118,7 +118,7 @@ class MixedBuffer(sb3.common.buffers.ReplayBuffer):
 
 
 #set working directory for obtaining demos
-os.chdir('/home/bee/development/gym-liftoff-connector/database/csv')  
+os.chdir('database/csv')  
 
 path = './StableFlight_60FPS_ShortCircuit_HighQuality_2025-1-27.csv'
 df = pd.read_csv(path)
