@@ -241,7 +241,7 @@ agent = sb3.DDPG(
 
 agent.replay_buffer.set_demo_data(demo_observations, demo_actions, demo_next_observations, demo_rewards, demo_dones, demo_truncateds)
 
-agent.set_logger(Logger('/home/bee/development/gym-liftoff-connector/models/ddpg/logs', output_formats = [TensorBoardOutputFormat('/home/bee/development/gym-liftoff-connector/models/ddpg/logs')]))
+agent.set_logger(Logger('../../models/ddpg/logs', output_formats = [TensorBoardOutputFormat('../../models/ddpg/logs')]))
 
 # # load the model if it exists
 # if os.path.exists('/home/bee/development/gym-liftoff-connector/models/model_step_3600000.zip'):
@@ -360,10 +360,10 @@ def train_agent(agent):
                 print(f"Buffer demo ratio: {agent.replay_buffer.demo_ratio}")
                 if len(actions) > 0:
                     print(f"Last action: {actions[-1]}")
-                agent.save(f"/home/bee/development/gym-liftoff-connector/models/ddpg/model_latest.zip")
+                agent.save(f"../../models/ddpg/model_latest.zip")
                 # save every 100000 steps
                 if steps % SAVE_INTERVAL == 0:
-                    agent.save(f"/home/bee/development/gym-liftoff-connector/models/ddpg/model_step_{steps}.zip")
+                    agent.save(f"../../models/ddpg/model_step_{steps}.zip")
                 weights_updated.set()  # Indicate that weights have been updated
         except Exception as e:
             print("Error during training")
@@ -454,7 +454,7 @@ pause_thread.join()
 play_thread.join()
 train_thread.join()
 
-agent.save("/home/bee/development/gym-liftoff-connector/models/model_latest.zip")
+agent.save("../../models/model_latest.zip")
 
 # show the actions
 actions = np.array(actions)
