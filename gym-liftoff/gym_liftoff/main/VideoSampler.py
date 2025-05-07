@@ -79,21 +79,29 @@ class VideoSampler:
         - List of edge segments identified as roads.
         """
         contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        road_edges = []
+        road_features = []
 
         for contour in contours:
             # Approximate the contour to get a simpler polygon
-            epsilon = 0.02 * cv2.arcLength(contour, True)
-            approx = cv2.approxPolyDP(contour, epsilon, True)
-
+            length = cv2.arcLength(contour, True)
             # Check if the contour is long enough to be considered a road
-            if cv2.arcLength(approx, True) >= min_length:
+            if length >= min_length:
                 # Check orientation of the contour (simple horizontal check)
-                x, y, w, h = cv2.boundingRect(contour)
+                approx = cv2.approxPolyDP(contour, 0.02 * length, True)
+                _, _, w, h = cv2.boundingRect(approx)
                 if h > w:  # Adjust this condition based on the expected orientation of roads
-                    road_edges.append(approx)
+                    rect = cv2.minAreaRect(approx)  # ((cx, cy), (w, h), angle)
+                    (cx, cy), (w, h), angle = rect
 
-        return road_edges
+                    road_features.append({
+                        "contour": approx,
+                        "center": (int(cx), int(cy)),
+                        "width": w,
+                        "height": h,
+                        "angle": angle
+                    })
+
+        return road_features
         
     def find_road(self):
         # apply blur
@@ -101,32 +109,27 @@ class VideoSampler:
         
         #detect edges
         edges = cv2.Canny(img, 50, 150)
-        filtered_edges = self.filter_edges_for_roads(edges, min_length=300)
-        # mask = np.zeros_like(edges)
+        road_features = self.filter_edges_for_roads(edges, min_length=300)
         
-        # define a region of interest
-        # polygon = np.array([[(0, self.height), (0, 0), (self.width, 0), (self.width, self.height)]])
-
-        # cv2.fillPoly(mask, polygon, 255)
-        # masked_edges = cv2.bitwise_and(filtered_edges, mask)
+        if not road_features:
+            return None
         
-        #find road lines
-        
+        main_road = max(road_features, key=lambda r: r["width"] * r["height"])
 
-
-        # lines = cv2.HoughLinesP(masked_edges, 1, np.pi / 180, 50, minLineLength=100, maxLineGap=50)
-    
         # Draw the filtered_edges on a new image
         line_image = np.zeros_like(self.frame)
-        for edge in filtered_edges:
-            cv2.drawContours(line_image, [edge], -1, (0, 255, 0), 2)
+        for edge in road_features:
+            cv2.drawContours(line_image, [edge["contour"]], -1, (0, 255, 0), 2)
 
 
 
         #save image
         cv2.imwrite('road.png', line_image)
-
-        return self.frame 
+        center = main_road["center"]
+        width = main_road["width"]
+        height = main_road["height"]
+        angle = main_road["angle"]
+        return (cv2.cvtColor(line_image, cv2.COLOR_BGR2GRAY), (center, width, height, angle))
 
     def close(self):
         pass

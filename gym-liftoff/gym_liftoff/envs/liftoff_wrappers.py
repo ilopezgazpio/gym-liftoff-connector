@@ -1,5 +1,7 @@
+import time
 import gymnasium as gym
 import numpy as np
+import pyautogui
 
 class LiftoffWrapStability(gym.RewardWrapper):
     def __init__(self, env):
@@ -23,7 +25,16 @@ class LiftoffWrapRoad(gym.RewardWrapper):
 
     def reward(self, reward):
         if self.prev_obs is not None:
-            reward = reward - 0.01 * np.sum(np.abs(self.prev_obs - self.env.observation)) + 0.1 * self.env._get_info()['road']
+            road_features = self.env.unwrapped._get_info()['road']
+            # Features: (center, width, height, angle)
+            center_x, center_y = road_features[0]
+            width = road_features[1]
+            center_displacement = np.abs(center_x - self.env.unwrapped.sc_w / 2)
+            # Normalize the center displacement
+            center_displacement = center_displacement / (self.env.unwrapped.sc_w / 2)
+            # Calculate the road following reward
+            road_following_reward = 1 - center_displacement
+            reward = reward + 0.1 * road_following_reward
         self.prev_obs = self.env.unwrapped._get_observation()
         return reward
 
@@ -48,6 +59,22 @@ class LiftoffWrapLap(gym.RewardWrapper):
         self.prev_obs = None
         return self.env.reset(seed = seed, options = options)
     
+class LiftoffWrapSpeed(gym.RewardWrapper):
+    def __init__(self, env):
+        super(LiftoffWrapSpeed, self).__init__(env)
+        self.prev_obs = None
+
+    def reward(self, reward):
+        if self.prev_obs is not None:
+            speed = self.env._get_info()['speed']
+            reward = reward + 0.1 * speed
+        self.prev_obs = self.env.unwrapped._get_observation()
+        return reward
+
+    def reset(self, seed=None, options=None):
+        self.prev_obs = None
+        return self.env.reset(seed = seed, options = options)
+    
 class LiftoffWrapDiscretized(gym.ActionWrapper):
     def __init__(self, env, n_actions=11):
         super(LiftoffWrapDiscretized, self).__init__(env)
@@ -64,6 +91,27 @@ class LiftoffWrapDiscretized(gym.ActionWrapper):
     def reset(self, seed=None, options=None):
         return self.env.reset(seed = seed, options = options)
     
+class LiftoffWrapAutoTakeOff(gym.Wrapper):
+    def __init__(self, env):
+        super(LiftoffWrapAutoTakeOff, self).__init__(env)
+    
+    def reset(self, seed=None, options=None):
+        """Reset the state of the environment to an initial state"""
+        #press R key on the keyboard to reset the game
+        print("Resetting the game")
+        self.resetting = True
+        self.virtual_gamepad.reset()
+        pyautogui.press('r')
+        time.sleep(1.5)
+        self.virtual_gamepad.reset()
+        self.act([1400, 1024, 1024, 1024], from_reset=True)
+        time.sleep(1) 
+        self.time = 0
+        self.state = self.video_sampler.sample(region=(1280, 0, 1920, 1080))
+        info = self._get_info()
+        observation = self._get_observation()
+        self.resetting = False
+        return (observation, info)
 
 class LiftoffWrapNormalizedActions(gym.ActionWrapper):
     """Wrap the environment to normalize the action space to [-1, 1]

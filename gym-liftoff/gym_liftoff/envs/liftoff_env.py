@@ -79,9 +79,14 @@ class Liftoff(gym.Env):
         # self.reward_model = RewardModel.RewardModel()
 
     def _get_info(self):
+        road = self.video_sampler.find_road()
+        # get the center point of the road and the width and height of the road
+        # road is a frame of shape (image_height, image_width, 3), having the road in green and the rest in black
+        # road = cv2.cvtColor(road, cv2.COLOR_BGR2GRAY)
+        frame, features = self.video_sampler.find_road()
         return {
-            'speed': self._get_speed()
-            # 'road': self.video_sampler.find_road()
+            'speed': self._get_speed(),
+            'road': features,
         }
     
     def _get_observation(self):
@@ -91,12 +96,12 @@ class Liftoff(gym.Env):
         assert array.shape == self.observation_space.shape
         return array
 
-    def _get_reward(self, action, info):
+    def _get_reward(self, action):
         # 0 if the game finishes
         if self.__episode_terminated__():
             return float(-100)
         # 1 otherwise
-        return float(1 + 0.1 * info['speed'])
+        return 1
 
     def act(self, action, from_reset=False):
         if self.resetting and not from_reset:
@@ -116,7 +121,7 @@ class Liftoff(gym.Env):
 
         observation = self._get_observation()
         info = self._get_info()
-        reward = self._get_reward(action, info)
+        reward = self._get_reward(action)
         done = self.__episode_terminated__()
 
         return observation, reward, done, False, info
@@ -131,8 +136,8 @@ class Liftoff(gym.Env):
         pyautogui.press('r')
         time.sleep(1.5)
         self.virtual_gamepad.reset()
-        self.act([1400, 1024, 1024, 1024], from_reset=True)
-        time.sleep(1) 
+        # self.act([1400, 1024, 1024, 1024], from_reset=True)
+        # time.sleep(1) 
         self.time = 0
         self.state = self.video_sampler.sample(region=(1280, 0, 1920, 1080))
         info = self._get_info()

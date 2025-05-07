@@ -8,3 +8,5 @@ database/
 UBC_GameIntelligence/
 agent_testing/
 models/
+env_liftoff/
+env_gym_liftoff/
