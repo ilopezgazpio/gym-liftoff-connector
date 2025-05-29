@@ -2,7 +2,7 @@ import threading
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-from gym_liftoff.envs.liftoff_wrappers import LiftoffWrapStability, LiftoffWrapNormalizedActions, LiftoffFloatActions
+from gym_liftoff.envs.liftoff_wrappers import LiftoffWrapStability, LiftoffWrapNormalizedActions, LiftoffFloatActions, LiftoffWrapAutoTakeOff
 import time
 import stable_baselines3 as sb3
 import matplotlib.pyplot as plt
@@ -197,6 +197,7 @@ env = gym.make('gym_liftoff:liftoff-v0')
 env = LiftoffWrapStability(env)
 # env = LiftoffWrapNormalizedActions(env)
 env = LiftoffFloatActions(env)
+env = LiftoffWrapAutoTakeOff(env)
 
 print('Observation space:', env.observation_space)
 print('Observation space sample:', env.observation_space.sample())

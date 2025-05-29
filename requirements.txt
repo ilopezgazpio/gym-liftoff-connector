@@ -1,0 +1,11 @@
+pandas==2.0.3
+numpy==1.24.3
+gymnasium==1.0.0
+-e git+https://github.com/ilopezgazpio/gym-liftoff-connector.git@34fe69254120b66f6811351170c52a42b38a3000#egg=gym_liftoff&subdirectory=gym-liftoff
+stable-baselines3==2.4.0
+matplotlib==3.1.2
+torch==2.3.1
+torchvision==0.18.1
+opencv-python==4.10.0.84
+PyAutoGUI==0.9.54
+python-uinput==1.0.1
