@@ -7,10 +7,8 @@ import os
 import cv2
 import pandas as pd
 
-#set working directory for obtaining demos
-os.chdir('database/csv')  
 
-path = './StableFlight_60FPS_ShortCircuit_HighQuality_2025-1-27.csv'
+path = '.data/csv_files/demo_flight.csv'
 df = pd.read_csv(path)
 
 # for each row in the dataframe, get (state, action, next_state, reward, terminatedm, truncated)
