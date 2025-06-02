@@ -3,6 +3,22 @@ import gymnasium as gym
 import numpy as np
 import pyautogui
 
+class LiftoffPastState(gym.ObservationWrapper):
+    def __init__(self, env, past_length=4):
+        super(LiftoffPastState, self).__init__(env)
+        self.past_length = past_length
+        self.past_observations = []
+
+    def observation(self, observation):
+        self.past_observations.append(observation)
+        if len(self.past_observations) > self.past_length:
+            self.past_observations.pop(0)
+        return np.concatenate(self.past_observations, axis=-1)
+
+    def reset(self, seed=None, options=None):
+        self.past_observations = []
+        return self.env.reset(seed = seed, options = options)
+
 class LiftoffWrapStability(gym.RewardWrapper):
     def __init__(self, env):
         super(LiftoffWrapStability, self).__init__(env)
