@@ -97,7 +97,7 @@ agent = MultiDQN(
     optimizer=optim.Adam,
     data_amount_start = 1.0,
     data_amount_end = 0.0,
-    data_amount_decay = 0.9999
+    data_amount_decay = 0.99
 )
 
 # make sure all states in exp have shape (256*256)

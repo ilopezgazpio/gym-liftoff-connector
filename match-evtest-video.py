@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import pandas as pd
 #load evtest file
-with open('StableFlight_10FPS_ShortCircuit_SimpleQuality_2024-8-1.evtest') as f:
+with open('StableFlight_60FPS_ShortCircuit_HighQuality_2025-1-27.evtest') as f:
     lines = f.readlines()
     throttle = int(lines[44].strip().split(' ')[-1])
     pitch = int(lines[38].strip().split(' ')[-1])
@@ -13,7 +13,7 @@ events = lines[77:]
 # Load the video
 start = 13
 frames = []
-cap = cv2.VideoCapture('StableFlight_10FPS_ShortCircuit_SimpleQuality_2024-8-1.webm')
+cap = cv2.VideoCapture('StableFlight_60FPS_ShortCircuit_HighQuality_2025-1-27.mp4')
 fps = cap.get(cv2.CAP_PROP_FPS)
 total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 for f in range(start, total):
@@ -40,6 +40,6 @@ for f in range(start, total):
 #store the frames in a dataframe, taking the frame as index
 dataFrame = pd.DataFrame(frames).set_index('frame')
 
-dataFrame.to_csv('StableFlight_10FPS_ShortCircuit_SimpleQuality_2024-8-1.csv')
+dataFrame.to_csv('data/csv/StableFlight_60FPS_ShortCircuit_HighQuality_2025-1-27.csv')
 
     
