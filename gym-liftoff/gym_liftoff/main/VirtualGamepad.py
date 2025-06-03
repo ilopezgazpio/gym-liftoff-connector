@@ -67,7 +67,7 @@ class VirtualGamepad:
             version=0x111,
             name="RadioMaster TX16S Joystick (connector)",
         )
-        logger.info("Virtual Gamepad {} created..... OK")
+        logger.info("Virtual Gamepad created..... OK")
 
     def throttle(self, value):
         stick = uinput.ABS_Y
