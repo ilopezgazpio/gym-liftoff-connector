@@ -18,6 +18,45 @@ As a consequence the gym-liftoff-connector serves a intermediate component inter
 We build an Open AI Gym environment on top of the connector to make it more homogeneous with standard reinforcement learning APIs while following the conventions of openAI gym.
 
 
+## Setting Up the Python Virtual Environment (Python 3.10)
+
+To run this project, we recommend using a Python 3.10 virtual environment to ensure compatibility with all dependencies.
+Ensure Python 3.10 is available on your system:
+
+```
+python3.10 --version
+```
+
+create and activate the virtual environment
+
+```
+# Create the virtual environment
+python3.10 -m venv .gym-liftoff
+
+# Activate the virtual environment
+source .gym-liftoff/bin/activate
+```
+
+Install Dependencies, first, ensure pip and setuptools are up to date:
+```
+pip install --upgrade pip setuptools
+pip install numpy gymnasium stable-baselines3 matplotlib torch opencv-python pandas pyautogui python-uinput pytesseract torchvision Pillow
+pip3 install -e gym-liftoff
+```
+
+Optional: Save Dependencies to requirements.txt
+
+```
+pip freeze > requirements.txt
+```
+
+Create environment from requirements.txt file
+```
+pip install -r requirements.txt
+```
+
+
+
 ## Documentation and examples
 
 For further technical details please refer to XXX. If the project is useful please consider citing and contributing:
