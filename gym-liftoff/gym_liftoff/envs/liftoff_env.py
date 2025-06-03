@@ -11,15 +11,14 @@ import pyautogui
 import logging
 logger = logging.getLogger(__name__)
 
-
-
 class Liftoff(gym.Env):
 
     metadata = {
-        'render.modes': ['human']
+        'render_modes': ['human']
     }
 
     def __get_curr_screen_geometry__(self):
+
         """
         Workaround to get the size of the main screen in a multi-screen setup.
 
@@ -37,32 +36,35 @@ class Liftoff(gym.Env):
         sc_w = int(geometry.split('x')[0])
         return sc_h, sc_w
 
+
     def __init__(self):
+
+        logger.info("Initializing environment.....")
 
         self.virtual_gamepad = VirtualGamepad.VirtualGamepad()
 
-
         self.sc_w, self.sc_h = self.__get_curr_screen_geometry__()
+        logger.info("Identified screen width..... {}".format(self.sc_w))
+        logger.info("Identified screen height..... {}".format(self.sc_h))
+
         self.video_sampler = VideoSampler.VideoSampler(self.sc_w, self.sc_h)
 
         self.render_mode = 'human'
 
         '''
         Observation space is defined as the screenshot converted to a numpy array
-
         '''
-        self.observation_space = spaces.Box(low=0, high=255, shape=(1, self.video_sampler.img_x, self.video_sampler.img_y), dtype=np.uint8)
-
+        self.observation_space = spaces.Box(low=0,
+                                            high=255,
+                                            shape=(1, self.video_sampler.img_x, self.video_sampler.img_y),
+                                            dtype=np.uint8)
         '''
-        Action space is defined as 
-        
-        4 values between 0 and 1
-        
+        Action space is defined as 4 values between 0 and 1
+
         0: Throttle
         1: Yaw
         2: Roll
         3: Pitch
-
         '''
         self.action_space = spaces.Box(low=0, high=2047, shape=(4,), dtype=np.uint16)
 
@@ -72,8 +74,6 @@ class Liftoff(gym.Env):
 
         self.state = np.arange(9).reshape((3, 3))
 
-        print("Screen width: ", self.sc_w)
-        print("Screen height: ", self.sc_h)
         self.consecutive_zero = 0
 
         # self.reward_model = RewardModel.RewardModel()
@@ -88,7 +88,7 @@ class Liftoff(gym.Env):
             'speed': self._get_speed(),
             'road': features,
         }
-    
+
     def _get_observation(self):
         array = np.array(self.state, dtype=np.uint8).reshape((1, self.video_sampler.img_x, self.video_sampler.img_y))
         # lower the resolution

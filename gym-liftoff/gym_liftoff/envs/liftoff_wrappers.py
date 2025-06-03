@@ -4,6 +4,7 @@ import numpy as np
 import pyautogui
 
 class LiftoffPastState(gym.ObservationWrapper):
+
     def __init__(self, env, past_length=4):
         super(LiftoffPastState, self).__init__(env)
         self.past_length = past_length
@@ -20,6 +21,7 @@ class LiftoffPastState(gym.ObservationWrapper):
         return self.env.reset(seed = seed, options = options)
 
 class LiftoffWrapStability(gym.RewardWrapper):
+
     def __init__(self, env):
         super(LiftoffWrapStability, self).__init__(env)
         self.prev_obs = None
@@ -35,6 +37,7 @@ class LiftoffWrapStability(gym.RewardWrapper):
         return self.env.reset(seed = seed, options = options)
 
 class LiftoffWrapRoad(gym.RewardWrapper):
+
     def __init__(self, env):
         super(LiftoffWrapRoad, self).__init__(env)
         self.prev_obs = None
@@ -59,6 +62,7 @@ class LiftoffWrapRoad(gym.RewardWrapper):
         return self.env.reset(seed = seed, options = options)
 
 class LiftoffWrapLap(gym.RewardWrapper):
+
     def __init__(self, env):
         super(LiftoffWrapLap, self).__init__(env)
         self.prev_obs = None
@@ -74,7 +78,7 @@ class LiftoffWrapLap(gym.RewardWrapper):
     def reset(self, seed=None, options=None):
         self.prev_obs = None
         return self.env.reset(seed = seed, options = options)
-    
+
 class LiftoffWrapSpeed(gym.RewardWrapper):
     def __init__(self, env):
         super(LiftoffWrapSpeed, self).__init__(env)
@@ -90,8 +94,9 @@ class LiftoffWrapSpeed(gym.RewardWrapper):
     def reset(self, seed=None, options=None):
         self.prev_obs = None
         return self.env.reset(seed = seed, options = options)
-    
+
 class LiftoffWrapDiscretized(gym.ActionWrapper):
+
     def __init__(self, env, n_actions=11):
         super(LiftoffWrapDiscretized, self).__init__(env)
         self.action_space = gym.spaces.MultiDiscrete([n_actions, n_actions, n_actions, n_actions])
@@ -102,7 +107,6 @@ class LiftoffWrapDiscretized(gym.ActionWrapper):
         """
         action = action * 2047 / (self.action_space.nvec[0] - 1)
         return action
-        
 
     def reset(self, seed=None, options=None):
         return self.env.reset(seed = seed, options = options)
