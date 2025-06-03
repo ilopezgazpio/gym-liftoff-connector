@@ -13,10 +13,12 @@ sudo chmod g+rw /dev/uinput
 sudo chgrp uinput /dev/uinput
 '''
 
-
 from collections import defaultdict
 import uinput
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 events = (
     uinput.BTN_SOUTH,
@@ -65,7 +67,7 @@ class VirtualGamepad:
             version=0x111,
             name="RadioMaster TX16S Joystick (connector)",
         )
-
+        logger.info("Virtual Gamepad {} created..... OK")
 
     def throttle(self, value):
         stick = uinput.ABS_Y
@@ -125,18 +127,14 @@ class VirtualGamepad:
         self.roll(int(action[2]))
         self.pitch(int(action[3]))
 
-
     def reset(self):
         self.zeroThrottle()
         self.centerYaw()
         self.centerRoll()
         self.centerPitch()
 
-
     def __emit__(self, event, value):
         self.device.emit(event, value)
-
-
 
     def close(self):
         self.device.destroy()
