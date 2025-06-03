@@ -39,6 +39,7 @@ source .gym-liftoff/bin/activate
 
 Install Dependencies, first, ensure pip and setuptools are up to date:
 ```
+sudo apt-get install python3-tk python3-dev
 pip install --upgrade pip setuptools
 pip install numpy gymnasium stable-baselines3 matplotlib torch opencv-python pandas pyautogui python-uinput pytesseract torchvision Pillow
 pip3 install -e gym-liftoff
@@ -54,7 +55,6 @@ Create environment from requirements.txt file
 ```
 pip install -r requirements.txt
 ```
-
 
 
 ## Documentation and examples
@@ -73,7 +73,7 @@ The installation process and usage examples for the gym environment are describe
 At the time we do not plan to extend the connector to other RC devices.
 Nevertheless, it should not be very complicated to update the current project to support further RC devices.
 The main steps to include a new RC device mainly consist of knowing the input events produced by the RC device and mapping them to the correct uinput events.
-The uinput library is a linux kernel module that allows to create virtual input devices. 
+The uinput library is a linux kernel module that allows to create virtual input devices.
 Then the uinput library is used to emulate the RC device inputs to the LiftOff game.
 The mapping for new RC devices can be analyzed using <i>evtest</i>, or similar kernel analysis tools.
 
@@ -192,12 +192,12 @@ To do that, use manual calibration, checking the channels that change with each 
 Debugging can be made using VirtualGamepad.py class directly, e.g.:
 
 ```python
-sudo PYTHONPATH=. python3 -i gym-liftoff/gym_liftoff/main/VirtualGamepad.py
+sudo PYTHONPATH=. python3.10 -i gym-liftoff/gym_liftoff/main/VirtualGamepad.py
 
-device.emit(uinput.ABS_Y, 0)      # Zero ABS_Y
-device.emit(uinput.ABS_Y, 2047)   # Max ABS_Y
-device.emit(uinput.ABS_X, 0)      # Zero ABS_X
-device.emit(uinput.ABS_X, 2047)   # Max ABS_X
+device.__emit__(uinput.ABS_Y, 0)      # Zero ABS_Y
+device.__emit__(uinput.ABS_Y, 2047)   # Max ABS_Y
+device.__emit__(uinput.ABS_X, 0)      # Zero ABS_X
+device.__emit__(uinput.ABS_X, 2047)   # Max ABS_X
 ```
 
 The event-channel configuration can also be directly imported using the file inside the folder called liftoff_configuration just by copying the file to our local liftoff folder as  Liftoff/Liftoff_Data/InputSettings/ba2614f0-0c69-4dd6-9dac-68b2b72e1acb/ba2614f0-0c69-4dd6-9dac-68b2b72e1acb_0001.inputsettings.
