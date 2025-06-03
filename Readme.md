@@ -141,7 +141,7 @@ Out of all these possible events, we are mainly interested in the following ones
 1) Throttle     -> mapped to  ABS_Y
 2) Yaw          -> mapped to  ABS_X
 3) Roll         -> mapped to  ABS_RX
-4) Pitch        -> mapped to  ABS_RY   
+4) Pitch        -> mapped to  ABS_RY
 
 Lift Off Drone simulator must be configured in order to assign this channels to the correct outputs of uinput events.
 To do that, use manual calibration, checking the channels that change with each command.
@@ -152,7 +152,6 @@ To do that, use manual calibration, checking the channels that change with each 
 
 Debugging can be made using VirtualGamepad.py class directly, e.g.:
 
-This configuration can be directly imported using the file insithe the folder liftoff_configuration. Copying it to our liftoff files in Liftoff/Liftoff_Data/InputSettings/ba2614f0-0c69-4dd6-9dac-68b2b72e1acb/ba2614f0-0c69-4dd6-9dac-68b2b72e1acb_0001.inputsettings. To reach the Liftoff folder, we can browse the local files of the game in Steam.
 ```python
 sudo PYTHONPATH=. python3 -i gym-liftoff/gym_liftoff/main/VirtualGamepad.py
 
@@ -161,6 +160,9 @@ device.emit(uinput.ABS_Y, 2047)   # Max ABS_Y
 device.emit(uinput.ABS_X, 0)      # Zero ABS_X
 device.emit(uinput.ABS_X, 2047)   # Max ABS_X
 ```
+
+The event-channel configuration can also be directly imported using the file inside the folder called liftoff_configuration just by copying the file to our local liftoff folder as  Liftoff/Liftoff_Data/InputSettings/ba2614f0-0c69-4dd6-9dac-68b2b72e1acb/ba2614f0-0c69-4dd6-9dac-68b2b72e1acb_0001.inputsettings.
+To reach the Liftoff folder, we can browse the local files of the game in Steam.
 
 Steam controller configurations can be used to verify the correct mapping:
 
@@ -178,6 +180,6 @@ We recommend living a 0.10 margin for deadband in the controller configuration.
 
 # Contributions
 
-We welcome contributions that further extend gym_liftoff_connector. 
+We welcome contributions that further extend gym_liftoff_connector.
 The easiest way to make contributions to this project is by emailing changes, opening issues on the project or proposing pull requests
 
