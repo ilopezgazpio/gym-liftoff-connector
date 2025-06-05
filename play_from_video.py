@@ -62,6 +62,8 @@ print('Action space sample:', env.action_space.sample())
 def play_game(env):
     done = False
     obs, _info = env.reset()
+    # arm the drone
+    action = np.array([0.0, 1027.0, 1027.0, 1027.0])  # throttle, yaw, roll, pitch
     while not done:
         start_time = time.time()
         action = demo_actions.pop(0)

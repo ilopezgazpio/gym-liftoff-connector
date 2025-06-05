@@ -11,3 +11,4 @@ models/
 env_liftoff/
 env_gym_liftoff/
 *.old
+.*

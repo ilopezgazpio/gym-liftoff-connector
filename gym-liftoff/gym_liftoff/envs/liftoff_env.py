@@ -83,7 +83,15 @@ class Liftoff(gym.Env):
         # get the center point of the road and the width and height of the road
         # road is a frame of shape (image_height, image_width, 3), having the road in green and the rest in black
         # road = cv2.cvtColor(road, cv2.COLOR_BGR2GRAY)
-        frame, features = self.video_sampler.find_road()
+        if road is None:
+            features = {
+                'road_center_x': 0,
+                'road_center_y': 0,
+                'road_width': 0,
+                'road_height': 0,
+            }
+        else:
+            features = road[1]
         return {
             'speed': self._get_speed(),
             'road': features,

@@ -131,7 +131,8 @@ class VideoSampler:
         width = main_road["width"]
         height = main_road["height"]
         angle = main_road["angle"]
-        return (cv2.cvtColor(line_image, cv2.COLOR_BGR2GRAY), (center, width, height, angle))
+        # Line image to gray
+        return (line_image, (center, width, height, angle))
 
     def close(self):
         pass
