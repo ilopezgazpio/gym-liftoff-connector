@@ -8,11 +8,13 @@ import torchvision
 from torchvision import transforms
 from PIL import Image
 import matplotlib.pyplot as plt
+import logging
+logger = logging.getLogger(__name__)
 
 class VideoSampler:
 
     def __init__ (self, width=1920, height=1080):
-        
+
         self.width, self.height = width, height
         self.img_x, self.img_y = 256, 256
         self.prev_speed_1 = 0
@@ -27,11 +29,11 @@ class VideoSampler:
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
-
+        logger.info("Initializing video sampler..... OK")
 
     def sample(self, region=None):
         self.screenshot = pyautogui.screenshot(region=region)
-        
+
         # resize the frame to 360p
         # self.screenshot = self.screenshot.resize((1920, 1080))
 
@@ -42,14 +44,14 @@ class VideoSampler:
         # reshape the state to 256
         self.state = cv2.resize(self.frame, (256, 256))
         return self.state
-    
+
     def get_speed(self):
         speed_img = self.frame[180:220, 1780:1870]
         # invert image
         # _, speed_img = cv2.threshold(speed_img, 254, 255, cv2.THRESH_BINARY)
         inverted_image = cv2.bitwise_not(speed_img)
         #show image
-        custom_config = r'--oem 3 --psm 7 -c tessedit_char_whitelist=0123456789'        
+        custom_config = r'--oem 3 --psm 7 -c tessedit_char_whitelist=0123456789'
         text = pytesseract.image_to_string(inverted_image, config=custom_config)
         # print('Extracted Speed:', text)
         numbers = re.findall(r'\d+', text)
@@ -66,7 +68,7 @@ class VideoSampler:
         #     if number%10 == 1:
         # print('Speed', speed)
         return speed
-        
+
     def filter_edges_for_roads(self, edges, min_length=160):
         """
         Filter edges to identify those likely corresponding to roads based on orientation and length.
@@ -102,18 +104,18 @@ class VideoSampler:
                     })
 
         return road_features
-        
+
     def find_road(self):
         # apply blur
         img = cv2.GaussianBlur(self.state, (5, 5), 0)
-        
+
         #detect edges
         edges = cv2.Canny(img, 50, 150)
         road_features = self.filter_edges_for_roads(edges, min_length=300)
-        
+
         if not road_features:
             return None
-        
+
         main_road = max(road_features, key=lambda r: r["width"] * r["height"])
 
         # Draw the filtered_edges on a new image
@@ -133,7 +135,7 @@ class VideoSampler:
 
     def close(self):
         pass
-    
+
 
 if __name__ == '__main__':
     sampler = VideoSampler()

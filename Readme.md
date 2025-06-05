@@ -18,6 +18,45 @@ As a consequence the gym-liftoff-connector serves a intermediate component inter
 We build an Open AI Gym environment on top of the connector to make it more homogeneous with standard reinforcement learning APIs while following the conventions of openAI gym.
 
 
+## Setting Up the Python Virtual Environment (Python 3.10)
+
+To run this project, we recommend using a Python 3.10 virtual environment to ensure compatibility with all dependencies.
+Ensure Python 3.10 is available on your system:
+
+```
+python3.10 --version
+```
+
+create and activate the virtual environment
+
+```
+# Create the virtual environment
+python3.10 -m venv .gym-liftoff
+
+# Activate the virtual environment
+source .gym-liftoff/bin/activate
+```
+
+Install Dependencies, first, ensure pip and setuptools are up to date:
+```
+sudo apt-get install python3-tk python3-dev
+pip install --upgrade pip setuptools
+pip install numpy gymnasium stable-baselines3 matplotlib torch opencv-python pandas pyautogui python-uinput pytesseract torchvision Pillow
+pip3 install -e gym-liftoff
+```
+
+Optional: Save Dependencies to requirements.txt
+
+```
+pip freeze > requirements.txt
+```
+
+Create environment from requirements.txt file
+```
+pip install -r requirements.txt
+```
+
+
 ## Documentation and examples
 
 For further technical details please refer to XXX. If the project is useful please consider citing and contributing:
@@ -34,7 +73,7 @@ The installation process and usage examples for the gym environment are describe
 At the time we do not plan to extend the connector to other RC devices.
 Nevertheless, it should not be very complicated to update the current project to support further RC devices.
 The main steps to include a new RC device mainly consist of knowing the input events produced by the RC device and mapping them to the correct uinput events.
-The uinput library is a linux kernel module that allows to create virtual input devices. 
+The uinput library is a linux kernel module that allows to create virtual input devices.
 Then the uinput library is used to emulate the RC device inputs to the LiftOff game.
 The mapping for new RC devices can be analyzed using <i>evtest</i>, or similar kernel analysis tools.
 
@@ -141,7 +180,7 @@ Out of all these possible events, we are mainly interested in the following ones
 1) Throttle     -> mapped to  ABS_Y
 2) Yaw          -> mapped to  ABS_X
 3) Roll         -> mapped to  ABS_RX
-4) Pitch        -> mapped to  ABS_RY   
+4) Pitch        -> mapped to  ABS_RY
 
 Lift Off Drone simulator must be configured in order to assign this channels to the correct outputs of uinput events.
 To do that, use manual calibration, checking the channels that change with each command.
@@ -152,15 +191,17 @@ To do that, use manual calibration, checking the channels that change with each 
 
 Debugging can be made using VirtualGamepad.py class directly, e.g.:
 
-This configuration can be directly imported using the file insithe the folder liftoff_configuration. Copying it to our liftoff files in Liftoff/Liftoff_Data/InputSettings/ba2614f0-0c69-4dd6-9dac-68b2b72e1acb/ba2614f0-0c69-4dd6-9dac-68b2b72e1acb_0001.inputsettings. To reach the Liftoff folder, we can browse the local files of the game in Steam.
 ```python
-sudo PYTHONPATH=. python3 -i gym-liftoff/gym_liftoff/main/VirtualGamepad.py
+sudo PYTHONPATH=. python3.10 -i gym-liftoff/gym_liftoff/main/VirtualGamepad.py
 
-device.emit(uinput.ABS_Y, 0)      # Zero ABS_Y
-device.emit(uinput.ABS_Y, 2047)   # Max ABS_Y
-device.emit(uinput.ABS_X, 0)      # Zero ABS_X
-device.emit(uinput.ABS_X, 2047)   # Max ABS_X
+device.__emit__(uinput.ABS_Y, 0)      # Zero ABS_Y
+device.__emit__(uinput.ABS_Y, 2047)   # Max ABS_Y
+device.__emit__(uinput.ABS_X, 0)      # Zero ABS_X
+device.__emit__(uinput.ABS_X, 2047)   # Max ABS_X
 ```
+
+The event-channel configuration can also be directly imported using the file inside the folder called liftoff_configuration just by copying the file to our local liftoff folder as  Liftoff/Liftoff_Data/InputSettings/ba2614f0-0c69-4dd6-9dac-68b2b72e1acb/ba2614f0-0c69-4dd6-9dac-68b2b72e1acb_0001.inputsettings.
+To reach the Liftoff folder, we can browse the local files of the game in Steam.
 
 Steam controller configurations can be used to verify the correct mapping:
 
@@ -178,6 +219,6 @@ We recommend living a 0.10 margin for deadband in the controller configuration.
 
 # Contributions
 
-We welcome contributions that further extend gym_liftoff_connector. 
+We welcome contributions that further extend gym_liftoff_connector.
 The easiest way to make contributions to this project is by emailing changes, opening issues on the project or proposing pull requests
 
