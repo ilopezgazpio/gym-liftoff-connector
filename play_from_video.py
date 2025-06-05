@@ -8,7 +8,7 @@ import cv2
 import pandas as pd
 
 
-path = '.data/csv_files/demo_flight.csv'
+path = './data/csv_files/demo_flight.csv'
 df = pd.read_csv(path)
 
 # for each row in the dataframe, get (state, action, next_state, reward, terminatedm, truncated)
