@@ -1,8 +1,9 @@
 import numpy as np
 import gymnasium as gym
-from gym_liftoff.envs.liftoff_wrappers import LiftoffWrapStability, LiftoffWrapDiscretized
+from gym_liftoff.envs.liftoff_wrappers import LiftoffWrapStability, LiftoffWrapAutoTakeOff, LiftoffPastState
 import time
 import stable_baselines3 as sb3
+from sb3_contrib import TQC
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
@@ -18,7 +19,9 @@ EVAL_EPISODES = 10
 
 env = gym.make('gym_liftoff:liftoff-v0')
 env = LiftoffWrapStability(env)
-env = LiftoffWrapDiscretized(env, n_actions=11)
+env = LiftoffWrapAutoTakeOff(env)
+env = LiftoffPastState(env, past_length=4)
+print('Environment created')
 
 print('Observation space:', env.observation_space)
 print('Observation space sample:', env.observation_space.sample())
@@ -40,22 +43,20 @@ seed = 1
 
 
 # Create the agent
-agent = sb3.A2C( 
-                 env = env,
-                 verbose=1,
-                 policy='CnnPolicy',
-                 policy_kwargs=dict(net_arch=[256, 512, 512, 256]),
-                 learning_rate=0.00063,
-                 gamma=0.99,
-                 n_steps=5,
-                 ent_coef=0.01,
-                 vf_coef=0.5,
-                 max_grad_norm=0.5,
-                 rms_prop_eps=1e-5,
-                 use_rms_prop=True,
-                 use_sde=False,
-                 sde_sample_freq=-1,
-                 gae_lambda=1.0
+agent = TQC( 
+                env = env,
+                policy='CnnPolicy',
+                policy_kwargs=dict(net_arch=[256, 512, 512, 256]),
+                learning_rate=0.001,
+                buffer_size=10000,
+                batch_size=256,
+                train_freq=1,
+                gradient_steps=-1,
+                ent_coef='auto',
+                gamma=0.99,
+                tau=0.005,
+                verbose=1,
+                device='cuda' if torch.cuda.is_available() else 'cpu',
                 )
 
 
@@ -75,22 +76,22 @@ threading.Thread(target=get_stop).start()
 while reward < 10000 and not stop:
     assert not stop
     agent.learn(total_timesteps=N_TIMESTEPS)
-    # Test the agent
-    rewards = []
-    print('Evaluating')
-    for _ in range(EVAL_EPISODES):
-        obs, info = env.reset()
-        done = False
-        episode_reward = 0
-        while not done:
-            action, _ = agent.predict(obs)
-            obs, reward, done, _, info = env.step(action)
-            episode_reward += reward
-        rewards.append(episode_reward)
-    reward = np.mean(rewards)
+    # # Test the agent
+    # rewards = []
+    # print('Evaluating')
+    # for _ in range(EVAL_EPISODES):
+    #     obs, info = env.reset()
+    #     done = False
+    #     episode_reward = 0
+    #     while not done:
+    #         action, _ = agent.predict(obs)
+    #         obs, reward, done, _, info = env.step(action)
+    #         episode_reward += reward
+    #     rewards.append(episode_reward)
+    # reward = np.mean(rewards)
 
 # Save the agent parameters
-agent.save("./models/DQN_LIFTOFF.zip")
+agent.save("./models/TQC_LIFTOFF.zip")
 
 env.close()
 

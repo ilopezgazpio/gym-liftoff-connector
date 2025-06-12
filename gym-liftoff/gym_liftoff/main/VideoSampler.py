@@ -113,20 +113,24 @@ class VideoSampler:
         edges = cv2.Canny(img, 50, 150)
         road_features = self.filter_edges_for_roads(edges, min_length=300)
 
-        if not road_features:
-            return None
-
-        main_road = max(road_features, key=lambda r: r["width"] * r["height"])
-
         # Draw the filtered_edges on a new image
-        line_image = np.zeros_like(self.frame)
+        line_image = np.zeros_like(self.state)
         for edge in road_features:
-            cv2.drawContours(line_image, [edge["contour"]], -1, (0, 255, 0), 2)
+            # Draw the contour on the line image
+            if "contour" in edge:
+                # Draw the contour on the line image
+                cv2.drawContours(line_image, [edge["contour"]], -1, (255, 0, 0), 2)
 
 
+
+        if not road_features:
+            print("No road features found.")
+            return (None, None)
 
         #save image
         cv2.imwrite('road.png', line_image)
+        main_road = max(road_features, key=lambda r: r["width"] * r["height"])
+
         center = main_road["center"]
         width = main_road["width"]
         height = main_road["height"]
@@ -141,9 +145,9 @@ class VideoSampler:
 if __name__ == '__main__':
     sampler = VideoSampler()
     cv2.namedWindow('Road', cv2.WINDOW_NORMAL)
-    cv2.resizeWindow('Road', 1280, 720)
+    cv2.resizeWindow('Road', 255, 255)
     while True:
-        sampler.sample((0, 0, 1920, 1080))
+        sampler.sample((1280, 0, 1920, 1080))
         sampler.find_road()
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
