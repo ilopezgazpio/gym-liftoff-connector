@@ -12,3 +12,7 @@ env_liftoff/
 env_gym_liftoff/
 *.old
 .*
+tensordboard_logs/
+tensorboard_logs/
+plots/
+road.png

@@ -71,9 +71,9 @@ class Liftoff(gym.Env):
         '''
         Environment state
         '''
-
-        self.state = np.arange(9).reshape((3, 3))
-
+        self._has_reset = False
+        self.state = np.zeros((self.video_sampler.img_x, self.video_sampler.img_y), dtype=np.uint8)
+        self.resetting = False
         self.consecutive_zero = 0
 
         # self.reward_model = RewardModel.RewardModel()
@@ -97,7 +97,7 @@ class Liftoff(gym.Env):
             'road': features,
         }
 
-    def _get_observation(self):
+    def observation(self):
         array = np.array(self.state, dtype=np.uint8).reshape((1, self.video_sampler.img_x, self.video_sampler.img_y))
         # lower the resolution
         # array = array[::2, ::2]
@@ -117,6 +117,9 @@ class Liftoff(gym.Env):
         self.virtual_gamepad.act(action)
 
     def step(self, action):
+        if not self._has_reset:
+            raise gym.error.ResetNeeded("Cannot call env.step() before calling env.reset()")
+    
         info = {}
 
         '''Send action to liftoff through virtual gamepad'''
@@ -127,31 +130,38 @@ class Liftoff(gym.Env):
 
         # self.__episode_terminated__() ???
 
-        observation = self._get_observation()
+        observation = self.observation()
         info = self._get_info()
         reward = self._get_reward(action)
-        done = self.__episode_terminated__()
-
-        return observation, reward, done, False, info
+        terminated = self.__episode_terminated__()
+        truncated = False
+        if terminated or truncated:
+            self._has_reset = False
+        return observation, reward, terminated, truncated, info
 
 
     def reset(self, seed=None, options=None):
-        """Reset the state of the environment to an initial state"""
-        #press R key on the keyboard to reset the game
-        print("Resetting the game")
-        self.resetting = True
-        self.virtual_gamepad.reset()
-        pyautogui.press('r')
-        time.sleep(1.5)
-        self.virtual_gamepad.reset()
-        # self.act([1400, 1024, 1024, 1024], from_reset=True)
-        # time.sleep(1) 
+        super().reset(seed=seed)  # sets Gymnasium RNG
+        self._has_reset = True
+
+        if hasattr(self, "resetting") and self.resetting:
+            # already called from wrapper, skip duplication
+            pass
+        else:
+            self.resetting = True
+            self.virtual_gamepad.reset()
+            pyautogui.press('r')
+            time.sleep(1.5)
+            self.virtual_gamepad.reset()
+            self.act([1400, 1024, 1024, 1024], from_reset=True)
+            time.sleep(1)
+
         self.time = 0
         self.state = self.video_sampler.sample(region=(1280, 0, 1920, 1080))
+        observation = self.observation()
         info = self._get_info()
-        observation = self._get_observation()
         self.resetting = False
-        return (observation, info)
+        return observation, info
 
     def render(self, mode='human'):
         print("\n{}\n".format(self.state))
@@ -174,5 +184,5 @@ class Liftoff(gym.Env):
     def __episode_terminated__(self):
         """Check if the episode is terminated"""
         # screen is black
-        return np.mean(self.state) < 30
+        return np.mean(self.state) < 40
 

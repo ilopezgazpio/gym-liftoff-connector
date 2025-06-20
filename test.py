@@ -1,8 +1,9 @@
 import numpy as np
 import gymnasium as gym
-from gym_liftoff.envs.liftoff_wrappers import LiftoffWrapStability, LiftoffWrapNormalizedActions
+from gym_liftoff.envs.liftoff_wrappers import LiftoffWrapStability, LiftoffWrapAutoTakeOff, LiftoffPastState, LiftoffWrapRoad
 import time
 import stable_baselines3 as sb3
+import sb3_contrib
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
@@ -16,11 +17,16 @@ EVAL_EPISODES = 10
 
 print('Starting test')
 
-agent = sb3.DDPG.load('/home/bee/development/gym-liftoff-connector/models/ddpg/model_latest.zip', device='cpu')
+# Load the trained agent with buffer size 1
+agent = sb3_contrib.TQC.load('/home/bee/development/liftoff-bridge/models/tqc_road/40000.zip', device='cpu')
+
 
 env_test = gym.make('gym_liftoff:liftoff-v0')
 env_test = LiftoffWrapStability(env_test)
-env_test = LiftoffWrapNormalizedActions(env_test)
+env_test = LiftoffWrapAutoTakeOff(env_test)
+env_test = LiftoffPastState(env_test, past_length=4)
+env_test = LiftoffWrapRoad(env_test)
+# env_test = LiftoffWrapNormalizedActions(env_test)
 
 action_distribs = []
 

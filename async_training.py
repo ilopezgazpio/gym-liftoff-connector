@@ -3,6 +3,7 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 from gym_liftoff.envs.liftoff_wrappers import LiftoffWrapStability, LiftoffWrapNormalizedActions, LiftoffFloatActions, LiftoffWrapAutoTakeOff
+from gym_liftoff.main.MixedSB3Buffer import MixedBuffer
 import time
 import stable_baselines3 as sb3
 import matplotlib.pyplot as plt

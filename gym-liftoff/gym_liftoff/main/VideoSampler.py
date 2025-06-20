@@ -124,7 +124,6 @@ class VideoSampler:
 
 
         if not road_features:
-            print("No road features found.")
             return (None, None)
 
         #save image
