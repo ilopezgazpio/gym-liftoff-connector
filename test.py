@@ -23,10 +23,15 @@ agent = sb3_contrib.TQC.load('/home/bee/development/liftoff-bridge/models/tqc_ro
 
 env_test = gym.make('gym_liftoff:liftoff-v0')
 env_test = LiftoffWrapStability(env_test)
+<<<<<<< Updated upstream
 env_test = LiftoffWrapAutoTakeOff(env_test)
 env_test = LiftoffPastState(env_test, past_length=4)
 env_test = LiftoffWrapRoad(env_test)
 # env_test = LiftoffWrapNormalizedActions(env_test)
+=======
+env_test = LiftoffWrapNormalizedActions(env_test)
+env_test = LiftoffWrapAutoTakeOff(env_test)
+>>>>>>> Stashed changes
 
 action_distribs = []
 

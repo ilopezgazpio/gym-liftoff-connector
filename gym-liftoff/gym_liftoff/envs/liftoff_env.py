@@ -84,6 +84,7 @@ class Liftoff(gym.Env):
         # road is a frame of shape (image_height, image_width, 3), having the road in green and the rest in black
         # road = cv2.cvtColor(road, cv2.COLOR_BGR2GRAY)
         if road is None:
+            logger.info("Road is None")
             features = {
                 'road_center_x': 0,
                 'road_center_y': 0,
@@ -92,8 +93,13 @@ class Liftoff(gym.Env):
             }
         else:
             features = road[1]
+            logger.info("Road found..... OK")
+
+        speed = self._get_speed()
+        logger.info("Speed: {}".format(speed))
+        
         return {
-            'speed': self._get_speed(),
+            'speed': speed,
             'road': features,
         }
 
@@ -123,7 +129,7 @@ class Liftoff(gym.Env):
         info = {}
 
         '''Send action to liftoff through virtual gamepad'''
-
+        logger.info("Action performed: {}".format(action))
         self.act(action)
         ''' Sample liftoff state through video sampler'''
         self.state = self.video_sampler.sample(region=(1280, 0, 1920, 1080))
@@ -133,6 +139,7 @@ class Liftoff(gym.Env):
         observation = self.observation()
         info = self._get_info()
         reward = self._get_reward(action)
+<<<<<<< Updated upstream
         terminated = self.__episode_terminated__()
         truncated = False
         if terminated or truncated:
@@ -159,6 +166,28 @@ class Liftoff(gym.Env):
         self.time = 0
         self.state = self.video_sampler.sample(region=(1280, 0, 1920, 1080))
         observation = self.observation()
+=======
+        done = self.__episode_terminated__()
+
+        logger.info("Reward obtained: {}".format(reward))
+
+        return observation, reward, done, False, info
+
+
+    def reset(self, seed=None, options=None):
+        """Reset the state of the environment to an initial state"""
+        #press R key on the keyboard to reset the game
+        print("Resetting the game")
+        self.resetting = True
+        self.virtual_gamepad.reset()
+        pyautogui.press('r')
+        time.sleep(1.5)
+        self.virtual_gamepad.reset()
+        # self.act([1400, 1024, 1024, 1024], from_reset=True)
+        # time.sleep(1)
+        self.time = 0
+        self.state = self.video_sampler.sample(region=(0, 0, 1920, 1080))
+>>>>>>> Stashed changes
         info = self._get_info()
         self.resetting = False
         return observation, info
@@ -170,9 +199,9 @@ class Liftoff(gym.Env):
     def close(self):
         self.virtual_gamepad.close()
         self.video_sampler.close()
-        
+
         return
-    
+
     def _get_speed(self):
         number = self.video_sampler.get_speed()
         if number:
