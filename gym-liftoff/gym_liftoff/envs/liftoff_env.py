@@ -2,14 +2,14 @@ import gymnasium as gym
 from gymnasium import error, spaces, utils
 from gymnasium.utils import seeding
 import numpy as np
-from ..main import VirtualGamepad, VideoSampler
+from gym_liftoff.main import VirtualGamepad, VideoSampler
 import tkinter as tk
 import time
 import torch
 import pyautogui
-from liftoff_wrappers import LiftoffWrapNormalizedActions
-from action_mode import *
-from rewards import *
+from gym_liftoff.envs.liftoff_wrappers import LiftoffWrapNormalizedActions
+from gym_liftoff.envs.action_mode import *
+from gym_liftoff.envs.rewards import *
 
 import logging
 logger = logging.getLogger(__name__)
