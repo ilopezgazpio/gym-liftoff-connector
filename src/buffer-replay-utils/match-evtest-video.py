@@ -2,6 +2,7 @@ import cv2
 import pandas as pd
 import argparse
 import os
+from pathlib import Path
 
 def process_video_events(video_path, evtest_path, output_csv, start_frame=13, time_offset_ms=0.0):
     """
@@ -100,6 +101,7 @@ def process_video_events(video_path, evtest_path, output_csv, start_frame=13, ti
     print(f"Successfully exported data to {output_csv}")
 
 if __name__ == "__main__":
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--video", type=str, required=True)
     parser.add_argument("--evtest", type=str, required=True)
@@ -109,3 +111,18 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     process_video_events(args.video, args.evtest, args.out, args.start, args.offset)
+    """
+    BASIC_PATH = f"{Path(__file__).resolve().parent}/../../data/training_data"
+    CSV_PATH = BASIC_PATH + "/csv_data/"
+
+    path1 = BASIC_PATH + "/2025-1-27/"
+    mp4_1 = path1 + "StableFlight_60FPS_ShortCircuit_HighQuality_2025-1-27-002.mp4"
+    evtest1 = path1 + "StableFlight_60FPS_ShortCircuit_HighQuality_2025-1-27.evtest"
+
+    csv_path1 = CSV_PATH + "data-27.csv"
+
+    process_video_events(video_path=mp4_1, evtest_path=evtest1, output_csv=csv_path1)
+
+
+
+

@@ -16,3 +16,4 @@ tensordboard_logs/
 tensorboard_logs/
 plots/
 road.png
+data/training_data/

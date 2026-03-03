@@ -31,6 +31,9 @@ class VideoSampler:
         ])
         logger.info("Initializing video sampler..... OK")
 
+        self.moving_feature_params = dict(maxCorners=300, qualityLevel=0.01, minDistance=7, blockSize=7)
+        self.lk_params = dict(winSize=(21, 21), maxLevel=3, criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 30, 0.01))
+
     def sample(self, region=None):
         self.screenshot = pyautogui.screenshot(region=region)
 
@@ -105,6 +108,48 @@ class VideoSampler:
 
         return road_features
 
+    def is_moving(self, frame,threshold=1.5):
+        """
+        Funcion que controla si la cámara del dron está en movimiento
+        :Return 1 === No está en movimiento
+                2 == La imagen no es clara para sacar los suficientes puntos
+                0 == El dron está en movimiento
+        """
+        global prev_gray, prev_pts
+
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        if prev_gray is None:
+            prev_gray = gray
+            prev_pts = cv2.goodFeaturesToTrack(gray, **feature_params)
+            return 2
+
+        if prev_pts is None or len(prev_pts) < 50:
+            prev_pts = cv2.goodFeaturesToTrack(prev_gray, **feature_params)
+            return 2
+
+        # Flujo óptico
+        next_pts, status, _ = cv2.calcOpticalFlowPyrLK(
+            prev_gray, gray, prev_pts, None, **lk_params
+        )
+
+        # Filtrar puntos válidos
+        good_prev = prev_pts[status.flatten() == 1]
+        good_next = next_pts[status.flatten() == 1]
+
+        # Magnitud del movimiento
+        motion = np.linalg.norm(good_next - good_prev, axis=1)
+        mean_motion = np.mean(motion)
+
+        # Actualizar
+        prev_gray = gray
+        prev_pts = good_next.reshape(-1, 1, 2)
+
+        if mean_motion > threshold:
+            return 0
+        return 1
+
+
     def find_road(self):
         # apply blur
         img = cv2.GaussianBlur(self.state, (5, 5), 0)
@@ -120,8 +165,6 @@ class VideoSampler:
             if "contour" in edge:
                 # Draw the contour on the line image
                 cv2.drawContours(line_image, [edge["contour"]], -1, (255, 0, 0), 2)
-
-
 
         if not road_features:
             return (None, None)

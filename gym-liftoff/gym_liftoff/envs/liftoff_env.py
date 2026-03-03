@@ -7,6 +7,9 @@ import tkinter as tk
 import time
 import torch
 import pyautogui
+from liftoff_wrappers import LiftoffWrapNormalizedActions
+from action_mode import *
+from rewards import *
 
 import logging
 logger = logging.getLogger(__name__)
@@ -37,7 +40,20 @@ class Liftoff(gym.Env):
         return sc_h, sc_w
 
 
-    def __init__(self):
+    def __init__(self, continuous_action_mode = False, max_episode_time = None):
+
+        """
+        Args:
+            max_steps: array of 4 elements indicating the duration of the episode
+                Positions:
+                    0: days
+                    1: hours
+                    2: minutes
+                    3: seconds
+
+        """
+        # TODO: Para medir el tiempo máximo que pueda estar el dron volando se necesita acceder al TimeStamp de los
+        #       archivos de configuracion del juego
 
         logger.info("Initializing environment.....")
 
@@ -76,7 +92,29 @@ class Liftoff(gym.Env):
         self.resetting = False
         self.consecutive_zero = 0
 
-        # self.reward_model = RewardModel.RewardModel()
+        '''
+        Duration of each episode
+        '''
+        if max_episode_time: self.max_episode_time = 86400*max_episode_time[0] + 3600*max_episode_time[1] + 60 * max_episode_time[2] + max_episode_time[3]
+        else:self.max_episode_time = max_episode_time
+
+
+        '''
+        Passes the action space from a continuous space to a discretize action space [0, 2047] if activated. 
+        '''
+        if continuous_action_mode:
+            self.action_discretizer = continuous2discrete
+            print("WARNING! continuous action mode activated. The range of the agent must be [-1, 1]")
+        else:
+            self.action_discretizer = None
+
+        self.still_counter = 0
+        self.max_still = 5
+
+        self.past_action = None
+        self.penalty_threshold = 0.3
+
+
 
     def _get_info(self):
         road = self.video_sampler.find_road()
@@ -112,14 +150,24 @@ class Liftoff(gym.Env):
 
     def _get_reward(self, action):
         # 0 if the game finishes
+        if not self.action_discretizer:
+            action = discrete2continuous(action)
+        if not self.past_action:
+            self.past_action = action
+            return 0
         if self.__episode_terminated__():
-            return float(-100)
-        # 1 otherwise
-        return 1
+            return float(-10)
+
+        delta_action = abs(action - self.past_action)
+        self.past_action = action
+
+        return stability_reward(delta_action)
 
     def act(self, action, from_reset=False):
         if self.resetting and not from_reset:
             return
+        if self.action_discretizer:
+            action = self.action_discretizer.action(action)
         self.virtual_gamepad.act(action)
 
     def step(self, action):
@@ -139,7 +187,6 @@ class Liftoff(gym.Env):
         observation = self.observation()
         info = self._get_info()
         reward = self._get_reward(action)
-<<<<<<< Updated upstream
         terminated = self.__episode_terminated__()
         truncated = False
         if terminated or truncated:
@@ -166,31 +213,11 @@ class Liftoff(gym.Env):
         self.time = 0
         self.state = self.video_sampler.sample(region=(1280, 0, 1920, 1080))
         observation = self.observation()
-=======
         done = self.__episode_terminated__()
 
         logger.info("Reward obtained: {}".format(reward))
 
         return observation, reward, done, False, info
-
-
-    def reset(self, seed=None, options=None):
-        """Reset the state of the environment to an initial state"""
-        #press R key on the keyboard to reset the game
-        print("Resetting the game")
-        self.resetting = True
-        self.virtual_gamepad.reset()
-        pyautogui.press('r')
-        time.sleep(1.5)
-        self.virtual_gamepad.reset()
-        # self.act([1400, 1024, 1024, 1024], from_reset=True)
-        # time.sleep(1)
-        self.time = 0
-        self.state = self.video_sampler.sample(region=(0, 0, 1920, 1080))
->>>>>>> Stashed changes
-        info = self._get_info()
-        self.resetting = False
-        return observation, info
 
     def render(self, mode='human'):
         print("\n{}\n".format(self.state))
@@ -213,5 +240,9 @@ class Liftoff(gym.Env):
     def __episode_terminated__(self):
         """Check if the episode is terminated"""
         # screen is black
-        return np.mean(self.state) < 40
+        moving_input = self.video_sampler.is_moving(frame=self.state)
+        if moving_input == 1:
+            self.still_counter += 1
+
+        return self.still_counter == self.max_still
 
