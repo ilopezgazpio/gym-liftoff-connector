@@ -10,6 +10,9 @@ import pyautogui
 from gym_liftoff.envs.liftoff_wrappers import LiftoffWrapNormalizedActions
 from gym_liftoff.envs.action_mode import *
 from gym_liftoff.envs.rewards import *
+from gym_liftoff.envs.telemetry import init_udp_socket
+from gym_liftoff.envs.detector import CrashDetector
+import socket
 
 import logging
 logger = logging.getLogger(__name__)
@@ -54,6 +57,12 @@ class Liftoff(gym.Env):
         """
         # TODO: Para medir el tiempo máximo que pueda estar el dron volando se necesita acceder al TimeStamp de los
         #       archivos de configuracion del juego
+        """
+        Liftoff Telemetry Socket
+        """
+
+        self.sock = init_udp_socket()
+        self.crash_detector = CrashDetector()
 
         logger.info("Initializing environment.....")
 
@@ -72,7 +81,7 @@ class Liftoff(gym.Env):
         '''
         self.observation_space = spaces.Box(low=0,
                                             high=255,
-                                            shape=(1, self.video_sampler.img_x, self.video_sampler.img_y),
+                                            shape=(3, self.video_sampler.img_x, self.video_sampler.img_y),
                                             dtype=np.uint8)
         '''
         Action space is defined as 4 values between 0 and 1
@@ -121,25 +130,7 @@ class Liftoff(gym.Env):
         # get the center point of the road and the width and height of the road
         # road is a frame of shape (image_height, image_width, 3), having the road in green and the rest in black
         # road = cv2.cvtColor(road, cv2.COLOR_BGR2GRAY)
-        if road is None:
-            logger.info("Road is None")
-            features = {
-                'road_center_x': 0,
-                'road_center_y': 0,
-                'road_width': 0,
-                'road_height': 0,
-            }
-        else:
-            features = road[1]
-            logger.info("Road found..... OK")
-
-        speed = self._get_speed()
-        logger.info("Speed: {}".format(speed))
-        
-        return {
-            'speed': speed,
-            'road': features,
-        }
+        return self.read_telemetry()
 
     def observation(self):
         array = np.array(self.state, dtype=np.uint8).reshape((1, self.video_sampler.img_x, self.video_sampler.img_y))
@@ -180,21 +171,21 @@ class Liftoff(gym.Env):
         logger.info("Action performed: {}".format(action))
         self.act(action)
         ''' Sample liftoff state through video sampler'''
-        self.state = self.video_sampler.sample(region=(1280, 0, 1920, 1080))
-
-        # self.__episode_terminated__() ???
+        # TODO: Seguramente que la línea de abajo esté mal pero por si acaso se pone comentada
+        #self.state = self.video_sampler.sample(region=(1280, 0, 1920, 1080))
+        self.state = self.video_sampler.sample()
 
         observation = self.observation()
         info = self._get_info()
         reward = self._get_reward(action)
-        terminated = self.__episode_terminated__()
+        terminated = self.__episode_terminated__(info)
         truncated = False
         if terminated or truncated:
             self._has_reset = False
         return observation, reward, terminated, truncated, info
 
 
-    def reset(self, seed=None, options=None):
+    def reset_deprecated(self, seed=None, options=None):
         super().reset(seed=seed)  # sets Gymnasium RNG
         self._has_reset = True
 
@@ -213,11 +204,33 @@ class Liftoff(gym.Env):
         self.time = 0
         self.state = self.video_sampler.sample(region=(1280, 0, 1920, 1080))
         observation = self.observation()
-        done = self.__episode_terminated__()
-
+        done = self.__episode_terminated__(info)
+        self.crash_detector.reset()
         logger.info("Reward obtained: {}".format(reward))
 
         return observation, reward, done, False, info
+
+    def reset(self, seed = None):
+        super().reset(seed=seed)
+        self._has_reset = True
+
+        if hasattr(self, "resetting") and self.resetting:
+            # already called from wrapper, skip duplication
+            pass
+        else:
+            self.resetting = True
+            self.virtual_gamepad.reset()
+            pyautogui.press('r')
+            time.sleep(2)
+
+        self.time = 0
+        self.state = self.video_sampler.sample()
+        observation = self.observation()
+        self.crash_detector.reset()
+        info = self.read_telemetry()
+        return observation, info
+
+
 
     def render(self, mode='human'):
         print("\n{}\n".format(self.state))
@@ -237,12 +250,33 @@ class Liftoff(gym.Env):
         self.consecutive_zero += 1
         return 0
 
-    def __episode_terminated__(self):
+    def __episode_terminated__(self, info):
         """Check if the episode is terminated"""
         # screen is black
-        moving_input = self.video_sampler.is_moving(frame=self.state)
-        if moving_input == 1:
-            self.still_counter += 1
 
-        return self.still_counter == self.max_still
+        return self.crash_detector.is_creashed(info)
+
+    def read_telemetry(self):
+        data, _ = self.sock.recvfrom(128)
+        unpacked = struct.unpack('18f', data[:72])
+
+        timestamp = unpacked[0]
+        pos = np.array(unpacked[1:4])  # PositionX, Y, Z
+        att = np.array(unpacked[4:8])  # Attitude X/Y/Z/W
+        vel = np.array(unpacked[8:11])  # SpeedX/Y/Z
+        gyro = np.array(unpacked[11:14])  # GyroPitch/Roll/Yaw
+        inp = np.array(unpacked[14:18])  # InputThrottle/Yaw/Pitch/Roll
+
+        info = {
+            'timestamp': timestamp,
+            'position': pos,
+            'attitude': att,
+            'velocity': vel,
+            'gyro': gyro,
+            'input': inp
+        }
+
+        return info
+
+
 
