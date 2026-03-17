@@ -13,6 +13,7 @@ from gym_liftoff.envs.rewards import *
 from gym_liftoff.envs.telemetry import init_udp_socket
 from gym_liftoff.envs.detector import CrashDetector
 import socket
+import struct
 
 import logging
 logger = logging.getLogger(__name__)
@@ -123,7 +124,10 @@ class Liftoff(gym.Env):
         self.past_action = None
         self.penalty_threshold = 0.3
 
-
+        logger.info("Enviroment ready. Open Liftoff and enter a flight. Press ENTER here to start.")
+        input()
+        logger.info("Starting in 5 seconds... Focus the Liftoff window now!")
+        time.sleep(5)
 
     def _get_info(self):
         road = self.video_sampler.find_road()
@@ -133,20 +137,22 @@ class Liftoff(gym.Env):
         return self.read_telemetry()
 
     def observation(self):
-        array = np.array(self.state, dtype=np.uint8).reshape((1, self.video_sampler.img_x, self.video_sampler.img_y))
+        array = np.array(self.state)
+        array = np.transpose(array, (2, 0, 1)).reshape((3, self.video_sampler.img_x, self.video_sampler.img_y))
+        #array = np.array(self.state, dtype=np.uint8).reshape((3, self.video_sampler.img_x, self.video_sampler.img_y))
         # lower the resolution
         # array = array[::2, ::2]
         assert array.shape == self.observation_space.shape
         return array
 
-    def _get_reward(self, action):
+    def _get_reward(self, action, terminated):
         # 0 if the game finishes
         if not self.action_discretizer:
             action = discrete2continuous(action)
-        if not self.past_action:
+        if self.past_action is None:
             self.past_action = action
             return 0
-        if self.__episode_terminated__():
+        if terminated:
             return float(-10)
 
         delta_action = abs(action - self.past_action)
@@ -155,10 +161,11 @@ class Liftoff(gym.Env):
         return stability_reward(delta_action)
 
     def act(self, action, from_reset=False):
+        self.resetting = False
         if self.resetting and not from_reset:
             return
         if self.action_discretizer:
-            action = self.action_discretizer.action(action)
+            action = self.action_discretizer(action)
         self.virtual_gamepad.act(action)
 
     def step(self, action):
@@ -177,8 +184,8 @@ class Liftoff(gym.Env):
 
         observation = self.observation()
         info = self._get_info()
-        reward = self._get_reward(action)
         terminated = self.__episode_terminated__(info)
+        reward = self._get_reward(action, terminated)
         truncated = False
         if terminated or truncated:
             self._has_reset = False
@@ -254,11 +261,19 @@ class Liftoff(gym.Env):
         """Check if the episode is terminated"""
         # screen is black
 
-        return self.crash_detector.is_creashed(info)
+        return self.crash_detector.is_crashed(info)
 
     def read_telemetry(self):
-        data, _ = self.sock.recvfrom(128)
-        unpacked = struct.unpack('18f', data[:72])
+        try:
+            data, _ = self.sock.recvfrom(128)
+            if len(data) < 72:
+                return None
+            unpacked = struct.unpack('18f', data[:72])
+            
+            
+        except BlockingIOError:
+            print("BlockingIOException reading LiftOff Telemetry")
+            return None
 
         timestamp = unpacked[0]
         pos = np.array(unpacked[1:4])  # PositionX, Y, Z

@@ -1,10 +1,13 @@
 from gym_liftoff.envs.liftoff_env import Liftoff
-from ensemble import EnsembleModel, StateAutoEncoder
-from policy import Actor, Critic, compute_gae
+from .ensemble import EnsembleModel, StateAutoEncoder
+from .policy import Actor, Critic, compute_gae
 from src.utils.datasets import IntrinsicCuriosityDataset, PPODataset
 from torch.utils.data import DataLoader
-import torch.optim.Adam as Adam
+from torch.optim import Adam
 from pathlib import Path
+import torch.nn.functional as F
+import torch
+from torchvision import transforms
 
 current_dir = Path(__file__).resolve().parent
 
@@ -95,7 +98,12 @@ cpu = torch.device("cpu")
 # Training
 # =================
 
+normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225])
+
+torch.cuda.empty_cache()
+
 for episode in range(NUM_EPISODES):
+    print(f"\n===== EPISODE {episode} =====")
     observations = []
     actions = []
     intrinsic_rewards = []
@@ -103,26 +111,32 @@ for episode in range(NUM_EPISODES):
     log_probs = []
     dones = []
     values = []
+    infos = []
+    actor = actor.to(device)
 
     # reset del env
-    obs, _, _, _, _ = env.reset()
+    obs, _ = env.reset()
     done = False
 
-    previous_action = torch.zeros((1, ACTION_DIM), dtype = torch.float32)
-
+    previous_action = torch.zeros((1, ACTION_DIM), dtype = torch.float32).to(device)
+    step = 0
     while not done:
         # convertir obs a tensor
-        obs_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0)  # batch 1
+        obs_tensor = torch.from_numpy(obs).float() / 255.0
+        obs_tensor = normalize(obs_tensor)
+        obs_tensor = obs_tensor.unsqueeze(0)
+        #obs_tensor = obs_tensor.permute(2,0,1).unsqueeze(0) # H W C -> 1 C H W
+        # #obs_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0) # batch 1
 
         # acción del policy PPO
-        action, log_prob = policy.sample_action(obs_tensor.to(device), previous_action)
+        action, log_prob = actor.sample_action(obs_tensor.to(device), previous_action)
 
         # ejecutar acción
-        next_obs, reward, terminated, truncated, info = env.step(action.detach().cpu().numpy())
+        next_obs, reward, terminated, truncated, info = env.step(action.squeeze(0).detach().cpu().numpy())
         done = terminated or truncated
 
-        previous_action = action.unsqueeze(0)
-
+        previous_action = action # .unsqueeze(0)
+        #print("Action:", action)
         # almacenar info para entrenamiento posterior
         observations.append(obs_tensor)
         actions.append(action)
@@ -130,10 +144,20 @@ for episode in range(NUM_EPISODES):
         env_rewards.append(reward)
         dones.append(done)
         log_probs.append(log_prob)
+        infos.append(info)
 
         # actualizar obs
         obs = next_obs
-    observations.append(next_obs)
+        step += 1
+        if step == 300:
+            break
+    for j, i in enumerate(infos):
+        print("Step:", j)
+        print("velocity:", i["velocity"])
+        print("position", i["position"])
+        print("timestamp", i["timestamp"])
+    observations.append(obs)
+    print(f"Episode finished in {step} steps, total env reward: {sum(env_rewards):.3f}")
 
     intrinsic_curiosity_dataset = IntrinsicCuriosityDataset(obsertvations=observations, rewards=env_rewards, actions=actions)
     intrinsic_curiosity_loader = DataLoader(intrinsic_curiosity_dataset, batch_size = BATCH_SIZE)
@@ -158,11 +182,11 @@ for episode in range(NUM_EPISODES):
         z_next = autoencoder.encoder(next_obs)
 
         reconstruct_obs = autoencoder.decoder(z)
-        rec_loss = F.MSELoss(reconstruct_obs, obs)
+        reconstruction_loss = F.MSELoss(reconstruct_obs, obs)
 
         ensemble_losses = []
         ensemble_preds = []
-        for nsbl in ensembles:
+        for nsbl in ensemble:
             pred_next_z = nsbl(z, act)
             loss = F.mse_loss(pred_next_z, z_next.detach())
             ensemble_losses.append(loss)
@@ -170,7 +194,9 @@ for episode in range(NUM_EPISODES):
 
         ensemble_loss = torch.stack(ensemble_losses).mean()
 
-        for nsbl in ensembles:
+        print(f"Reconstruction loss: {rec_loss.item():.4f}, Ensemble loss: {ensemble_loss.item():.4f}")
+
+        for nsbl in ensemble:
             for p in nsbl.parameters():
                 p.requires_grad = False
         # Encoder Backprop
@@ -178,7 +204,7 @@ for episode in range(NUM_EPISODES):
         (total_encoder_loss := reconstruction_loss + ensemble_loss).backward(retain_graph=True)
         encoder_opt.step()
 
-        for nsbl in ensembles:
+        for nsbl in ensemble:
             for p in nsbl.parameters():
                 p.requires_grad = True
         # Decoder Backprop
@@ -190,16 +216,19 @@ for episode in range(NUM_EPISODES):
         for pred, nsbl, optimizer in zip(ensemble_preds, ensemble, ensemble_opt):
             mask = torch.bernoulli(0.8 * torch.ones(pred.size(0), device=pred.device)).bool()
 
-            loss = F.mse_loss(pred[mask].detach(), z_next[mask].detach())
+            loss = F.mse_loss(pred[mask], z_next[mask].detach())
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-
+        """
         ir = torch.mean(torch.var(ensemble_preds, dim=1, unbiased=False), dim=1)
         ir = (ir - ir.mean()) / (ir.std() + 1e-8)
         ir = ir.unsqueeze(-1) # [batch, 1]
-
+        """
+        ir = torch.var(ensemble_preds, dim=0, unbiased=False)
+        ir = ir.mean(dim=1)  # [batch]
+        print(f"Intrinsic reward mean: {ir.mean().item():.4f}, std: {ir.std().item():.4f}")
         # TODO: Ponderar si es necesario
         reward = env_reward + LAMBDA*ir
         value = critic(obs, prev_action)
@@ -233,16 +262,17 @@ for episode in range(NUM_EPISODES):
 
             actor_loss = -torch.mean(torch.min(surr1, surr2))
 
-            actor_optimizer.zero_grad()
+            actor_opt.zero_grad()
             actor_loss.backward()
-            actor_optimizer.step()
+            actor_opt.step()
 
             value_pred = critic(b_obs)
-            critic_loss = F.mse_loss(value_pred, b_returns)
-            critic_optimizer.zero_grad()
+            critic_loss = F.mse_loss(value_pred, b_return)
+            critic_opt.zero_grad()
             critic_loss.backward()
-            critic_optimizer.step()
-
+            critic_opt.step()
+            print(f"PPO epoch actor_loss: {actor_loss.item():.4f}, critic_loss: {critic_loss.item():.4f}")
+            
     del observations[:]
     del actions[:]
     del env_rewards[:]
@@ -261,8 +291,8 @@ for episode in range(NUM_EPISODES):
             "optimizers": {
                 "encoder": encoder_opt.state_dict(),
                 "decoder": decoder_opt.state_dict(),
-                "actor": optimizer_actor.state_dict(),
-                "critic": optimizer_critic.state_dict(),
+                "actor": actor_opt.state_dict(),
+                "critic": critic_opt.state_dict(),
                 "ensemble": [opt.state_dict() for opt in optimizer_ensemble]
             }
         }

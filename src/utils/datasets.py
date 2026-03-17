@@ -4,7 +4,7 @@ import numpy as np
 from torch.utils.data import Dataset
 import torch
 
-from intrinsic_curiosity_based_driving.train import log_probs, previous_action
+#from ..intrinsic_curiosity_based_driving.train import log_probs, previous_action
 
 
 class VideoFramesDataset(Dataset):

@@ -9,6 +9,9 @@ from torchvision import transforms
 from PIL import Image
 import matplotlib.pyplot as plt
 import logging
+import mss
+from gym_liftoff.main.LiftOffWindowDetector import get_monitor
+
 logger = logging.getLogger(__name__)
 
 class VideoSampler:
@@ -34,7 +37,12 @@ class VideoSampler:
         self.moving_feature_params = dict(maxCorners=300, qualityLevel=0.01, minDistance=7, blockSize=7)
         self.lk_params = dict(winSize=(21, 21), maxLevel=3, criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 30, 0.01))
 
-    def sample(self, region=None):
+        """
+        Setting Liftoff absolute position
+        """
+        self.monitor = get_monitor()
+
+    def sample_deprecated(self, region=None):
         self.screenshot = pyautogui.screenshot(region=region)
 
         # resize the frame to 360p
@@ -47,6 +55,28 @@ class VideoSampler:
         # reshape the state to 256
         self.state = cv2.resize(self.frame, (256, 256))
         return self.state
+    def sample(self, region = None, gray = False):
+        self.screenshot = self.capture_monitor()
+        
+        self.frame = np.array(self.screenshot)
+        
+        if gray:
+            self.frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
+        
+        self.state = cv2.resize(self.frame, (256, 256))
+        return self.state
+
+
+    def capture_monitor(self):
+        """Returns a screenshot of the LiftOff game
+           Returns:
+               numpy array
+               shape = [Height, width, 3]
+               the array is in BGR mode
+        """
+        with mss.mss() as sct:
+            frame = np.array(sct.grab(self.monitor))[:, :, :3]
+        return frame
 
     def get_speed(self):
         speed_img = self.frame[180:220, 1780:1870]

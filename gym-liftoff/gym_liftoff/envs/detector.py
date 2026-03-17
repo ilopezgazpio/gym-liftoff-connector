@@ -22,19 +22,18 @@ class CrashDetector:
         self.drone_reset = False
 
     def is_crashed(self, info):
-        print(info)
         pos = info["position"]
         timestamp = info["timestamp"]
         vel = info["velocity"]
         inp = info["input"]
 
-        if self.last_pos is not None and timestamp < last_timestamp - 0.01:
+        if self.last_pos is not None and timestamp < self.last_timestamp - 0.01:
             self.drone_reset = True
 
         if self.last_pos is not None:
             movement = np.linalg.norm(pos - self.last_pos)
             speed = np.linalg.norm(vel)
-            input_active = np.linalg.norm(inp) > self.INPUT_MIN
+            input_active = np.linalg.norm(inp) > self.input_min
 
             if (movement < self.pos_min or speed < self.vel_min) and input_active:
                 self.crash_counter += 1

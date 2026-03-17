@@ -147,15 +147,17 @@ if __name__ == '__main__':
     device = VirtualGamepad()
 
     # #wait for controller to be ready
-    # time.sleep(5)
-    # # Start throttle
-    # device.throttle(0)
-    # time.sleep(2)
-    # device.throttle(2047)
-    # time.sleep(2)
-    # device.throttle(0)
-    # time.sleep(2)
-    # device.throttle(2047)
+    """
+    
+    time.sleep(5)
+     # Start throttle
+    device.throttle(0)
+    time.sleep(2)
+    device.throttle(500)
+    time.sleep(2)
+    device.throttle(0)
+    time.sleep(2)
+    device.throttle(500)
 
     # # Start yaw
     # device.yaw(0)
@@ -175,8 +177,9 @@ if __name__ == '__main__':
     # device.pitch(2047)
     # time.sleep(2)
 
-
-    '''
+    """
+    """
+    time.sleep(5)
     device.emit(uinput.BTN_TR, 1)
     device.emit(uinput.BTN_THUMBL, 1)
     device.emit(uinput.BTN_THUMBR, 1)
@@ -184,4 +187,4 @@ if __name__ == '__main__':
     device.emit(uinput.ABS_Y, 255)                  # Max Y
     device.emit(uinput.ABS_X, 0)                    # Zero X
     device.emit(uinput.ABS_X, 255)                  # Max X
-    '''
+    """

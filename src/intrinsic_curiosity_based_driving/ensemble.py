@@ -2,7 +2,7 @@ import torch
 from torchvision import models
 import torch.nn as nn
 import time
-import torch.nn.Functional as F
+import torch.nn.functional as F
 import torch
 
 
