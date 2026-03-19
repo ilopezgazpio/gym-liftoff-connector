@@ -3,6 +3,10 @@ import cv2
 import numpy as np
 from torch.utils.data import Dataset
 import torch
+import pickle
+
+from intrinsic_curiosity_based_driving.train import reward, advantages
+
 
 #from ..intrinsic_curiosity_based_driving.train import log_probs, previous_action
 
@@ -41,6 +45,27 @@ class VideoFramesDataset(Dataset):
             img = self.transform(img)
         return img
 
+class LMDBIntrinsicCuriosityDataset(Dataset):
+    def __init__(self, lmdb_path):
+        self.env = lmdb.open(lmdb_path, readonly=True, lock=False)
+        with self.env.begin() as txn:
+            self.keys = [key for key, _ in txn.cursor()]
+    def __len__(self):
+        return len(self.keys) - 1
+    def __getitem__(self, idx):
+        with self.env.begin() as txn:
+            data = txn.get(self.keys[idx])
+            next_data = txn.get(self.keys[idx+1])
+        sample = pickle.loads(data)
+        next_obs = torch.tensor(pickle.loads(next_data)["img"], dtype=torch.float32)
+
+        obs = torch.tensor(sample["img"], dtype=torch.float32)
+        reward = torch.tensor(sample["reward"], dtype=torch.float32)
+        action = torch.tensor(sample["action"], dtype=torch.float32)
+
+        return obs, action, reward, next_obs
+
+
 class IntrinsicCuriosityDataset(Dataset):
     def __init__(self, obsertvations, actions, rewards):
         self.obsertvations = obsertvations
@@ -59,10 +84,19 @@ class IntrinsicCuriosityDataset(Dataset):
         return obs, action, reward, next_obs
 
 class PPODataset(Dataset):
-    def __init__(self, log_probs, dones, past_actions):
+    def __init__(self, log_probs, dones, past_actions, rewards = None, advantages = None, values = None, returns = None):
         self.log_probs = log_probs
         self.dones = dones
         self.past_actions = past_actions
+        self.rewards = rewards
+        if rewards is None:
+            self.rewards = [0.0]*len(log_probs)
+        if advantages is None:
+            self.advantages = [0.0]*len(log_probs)
+        if values is None:
+            self.values = [0.0]*len(log_probs)
+        if returns is None:
+            self.returns = [0.0]*len(log_probs)
 
     def __len__(self):
         return len(self.log_probs)
@@ -70,8 +104,10 @@ class PPODataset(Dataset):
     def __getitem__(self, idx):
         log_prob = self.log_probs[idx]
         done = self.dones[idx]
-        if idx == 0:
-            prev_action = torch.zeros(4)
-        else:
-            prev_action = self.past_actions[idx]
-        return log_prob, done, prev_action
+        prev_action = self.past_actions[idx]
+        reward = self.rewards[idx]
+        adv = self.advantages[idx]
+        val = self.values[idx]
+        ret = self.returns[idx]
+
+        return log_prob, done, prev_action, reward, adv, val, ret

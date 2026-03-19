@@ -3,7 +3,7 @@ import struct
 import numpy as np
 
 class CrashDetector:
-    def __init__(self, vel_min = 0.05, input_min = 0.1, pos_min = 0.01, crash_threshold_counter = 10):
+    def __init__(self, vel_min = 1e-3, input_min = 0.1, pos_min = 0.01, crash_threshold_counter = 10):
         self.vel_min = vel_min
         self.input_min = input_min
         self.pos_min = pos_min
@@ -35,7 +35,8 @@ class CrashDetector:
             speed = np.linalg.norm(vel)
             input_active = np.linalg.norm(inp) > self.input_min
 
-            if (movement < self.pos_min or speed < self.vel_min) and input_active:
+            #if (movement < self.pos_min or speed < self.vel_min) and input_active:
+            if speed < self.vel_min and input_active:
                 self.crash_counter += 1
             else:
                 self.crash_counter = 0

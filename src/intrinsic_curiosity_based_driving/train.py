@@ -1,6 +1,11 @@
 from gym_liftoff.envs.liftoff_env import Liftoff
+
+from utils.datasets import LMDBIntrinsicCuriosityDataset
 from .ensemble import EnsembleModel, StateAutoEncoder
 from .policy import Actor, Critic, compute_gae
+from .lmdb_utils import LMDBWriter
+from queue import Queue
+from threading import Thread
 from src.utils.datasets import IntrinsicCuriosityDataset, PPODataset
 from torch.utils.data import DataLoader
 from torch.optim import Adam
@@ -8,8 +13,11 @@ from pathlib import Path
 import torch.nn.functional as F
 import torch
 from torchvision import transforms
+import pickle
+import lmdb
 
 current_dir = Path(__file__).resolve().parent
+lmdb_path = current_dir / "lmdb_episode_path"
 
 def save_last_episode(episode:int):
     with last_episode_saving_path.open("w") as f:
@@ -35,9 +43,10 @@ NUM_ENSEMBLE_MODELS = 8
 LATENT_DIM = 256
 ACTION_DIM = 4
 BATCH_SIZE = 32
+QUEUE_MAX = 500
 LAMBDA = 1 # weighs the intrinsic reward in the total reward
 PPO_EPOCHS = 4
-PPO_BATCH = 64
+PPO_BATCH = 32
 
 # =================
 # Models
@@ -94,23 +103,40 @@ if checkpoint:
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 cpu = torch.device("cpu")
 
+
 # =================
-# Training
+# Queue thread-safe
+# =================
+step_queue = Queue(maxsize=QUEUE_MAX)
+ppo_queue = Queue(maxsize=QUEUE_MAX)
+
+# =================
+# Initialize Worker and LMDB
+# =================
+
+writer = LMDBWriter()
+writer_thread.start()
+
+env = lmdb.open(lmdb_path, map_size=40 * 1024**3)  # 40 GB memory allocation
+
+# =================
+# Image Normalization
 # =================
 
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225])
+
+# =================
+# Training
+# =================
 
 torch.cuda.empty_cache()
 
 for episode in range(NUM_EPISODES):
     print(f"\n===== EPISODE {episode} =====")
-    observations = []
-    actions = []
-    intrinsic_rewards = []
-    env_rewards = []
-    log_probs = []
+    prev_actions = []
     dones = []
-    values = []
+    log_probs = []
+    env_rewards = []
     infos = []
     actor = actor.to(device)
 
@@ -135,47 +161,57 @@ for episode in range(NUM_EPISODES):
         next_obs, reward, terminated, truncated, info = env.step(action.squeeze(0).detach().cpu().numpy())
         done = terminated or truncated
 
-        previous_action = action # .unsqueeze(0)
         #print("Action:", action)
         # almacenar info para entrenamiento posterior
-        observations.append(obs_tensor)
-        actions.append(action)
-        intrinsic_rewards.append(None)  # placeholder, calcular después con ensemble
-        env_rewards.append(reward)
-        dones.append(done)
-        log_probs.append(log_prob)
+        step = {
+            "img": obs.cpu(),
+            "action": action.cpu(),
+            "reward": reward.cpu(),
+            "step": step
+        }
+
+        prev_actions.append(previous_action.to(cpu))
+        env_rewards.append(reward.to(cpu))
+        dones.append(dones)
+        log_probs.append(log_prob.to(cpu))
+
+        previous_action = action
+
         infos.append(info)
 
         # actualizar obs
         obs = next_obs
         step += 1
-        if step == 300:
-            break
+
     for j, i in enumerate(infos):
         print("Step:", j)
         print("velocity:", i["velocity"])
         print("position", i["position"])
         print("timestamp", i["timestamp"])
-    observations.append(obs)
+
+    last_step = {"img": obs}
+
+
     print(f"Episode finished in {step} steps, total env reward: {sum(env_rewards):.3f}")
 
-    intrinsic_curiosity_dataset = IntrinsicCuriosityDataset(obsertvations=observations, rewards=env_rewards, actions=actions)
+    intrinsic_curiosity_dataset = LMDBIntrinsicCuriosityDataset(lmdb_path=lmdb_path)
     intrinsic_curiosity_loader = DataLoader(intrinsic_curiosity_dataset, batch_size = BATCH_SIZE)
 
 
     ppo_dataset = PPODataset(log_probs = log_probs, dones= dones, past_actions=previous_action)
     ppo_loader = DataLoader(ppo_dataset, batch_size = BATCH_SIZE)
 
-    autoencoder = autoencoder.to(device)
+    encoder = encoder.to(device)
+    decoder = decoder.to(device)
     ensemble = [e.to(device) for e in ensemble]
     critic = critic.to(device)
 
-    final_rewards = torch.Tensor()
-    values = torch.Tensor()
+    final_rewards = []
+    values = []
 
     for intrinsic_batch, ppo_batch in zip(intrinsic_curiosity_loader, ppo_loader):
         obs, act, env_reward, next_obs = intrinsic_batch.to(device)
-        log_prob, done, prev_action = ppo_batch.to(device)
+        _, _, prev_action, _, _, _, _ = ppo_batch.to(device)
 
 
         z = autoencoder.encoder(obs)
@@ -194,7 +230,7 @@ for episode in range(NUM_EPISODES):
 
         ensemble_loss = torch.stack(ensemble_losses).mean()
 
-        print(f"Reconstruction loss: {rec_loss.item():.4f}, Ensemble loss: {ensemble_loss.item():.4f}")
+        print(f"Reconstruction loss: {reconstruction_loss.item():.4f}, Ensemble loss: {ensemble_loss.item():.4f}")
 
         for nsbl in ensemble:
             for p in nsbl.parameters():
@@ -233,26 +269,26 @@ for episode in range(NUM_EPISODES):
         reward = env_reward + LAMBDA*ir
         value = critic(obs, prev_action)
 
-        final_rewards = torch.cat((final_rewards, reward), 0)
-        values = torch.cat((values, value), 0)
+        final_rewards.append(reward.to(cpu))
+        values.append(value.to(cpu))
     with torch.no_grad():
-        last_value = critic(observations[-1].unsqueeze(0), actions[-1].unsqueeze(0))
+        last_value = critic(obs[-1].unsqueeze(0), act[-1].unsqueeze(0))
 
     advantages, returns = compute_gae(final_rewards, values, dones)
 
-    actions = torch.cat((torch.zeros((1, 4), dtype = torch.float32), actions))
-    dataset_size = len(advantages)
+    #actions = torch.cat((torch.zeros((1, 4), dtype = torch.float32), actions))
     clip_eps = 0.2
+
+    ppo_dataset = PPODataset(log_probs, dones, prev_actions, final_rewards, advantages, values, returns)
+    ppo_loader = DataLoader(ppo_dataset, batch_size = PPO_BATCH)
+
+    intrinsic_curiosity_loader = DataLoader(intrinsic_curiosity_dataset, batch_size = PPO_BATCH)
+
     for _ in range(PPO_EPOCHS):
-        for start in range(0, dataset_size, PPO_BATCH):
-            end = start + PPO_BATCH
-            b_obs = observations[start:end]
-            b_past_acts = actions[start:end]
-            b_acts = actions[start+1:end+1]
-            b_adv = advantages[start:end]
-            b_val = values[start:end]
-            b_return = returns[start:end]
-            old_log_probs = log_probs[start:end]
+        for intrinsic_batch, ppo_batch in zip(intrinsic_curiosity_loader, ppo_loader):
+            b_obs, b_acts, _, _ = intrinsic_batch.to(device)
+            old_log_probs, _, b_past_acts, _, b_adv, b_val, b_return = ppo_batch.to(device)
+
 
             b_new_probs = actor.get_log_probs(b_obs, b_past_acts, b_acts)
 
@@ -273,9 +309,6 @@ for episode in range(NUM_EPISODES):
             critic_opt.step()
             print(f"PPO epoch actor_loss: {actor_loss.item():.4f}, critic_loss: {critic_loss.item():.4f}")
             
-    del observations[:]
-    del actions[:]
-    del env_rewards[:]
     del final_rewards[:]
     del dones[:]
     del values[:]
@@ -293,7 +326,7 @@ for episode in range(NUM_EPISODES):
                 "decoder": decoder_opt.state_dict(),
                 "actor": actor_opt.state_dict(),
                 "critic": critic_opt.state_dict(),
-                "ensemble": [opt.state_dict() for opt in optimizer_ensemble]
+                "ensemble": [opt.state_dict() for opt in ensemble_opt]
             }
         }
         torch.save(all_models, models_dir / f"models_optimizers_{episode}.pth")
