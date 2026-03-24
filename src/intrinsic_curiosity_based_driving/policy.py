@@ -8,6 +8,7 @@ from torch.distributions.transforms import TanhTransform
 
 LOG_STD_MIN = -20
 LOG_STD_MAX = 2
+EPS = 1e-6
 
 class Actor(nn.Module):
     def __init__(self, action_dim):
@@ -32,7 +33,7 @@ class Actor(nn.Module):
         z = torch.cat([z_obs, z_action], dim=-1)
 
         mu = self.mu_layer(z)
-
+        mu = torch.clamp(mu, -5, 5)
         log_std = self.log_std_layer(z)
         log_std = torch.clamp(log_std, LOG_STD_MIN, LOG_STD_MAX)
         std = torch.exp(log_std)
@@ -40,7 +41,12 @@ class Actor(nn.Module):
         return mu, std
 
     def sample_action(self, observation: torch.Tensor, previous_action: torch.Tensor):
+
+
         mu, std = self.forward(observation, previous_action)
+
+        #print("mu:", mu.min().item(), mu.max().item())
+        #print("std:", std.min().item(), std.max().item())
 
         base_dist = Normal(mu, std)
         dist = TransformedDistribution(base_dist, [TanhTransform()])
@@ -55,6 +61,7 @@ class Actor(nn.Module):
         base_dist = Normal(mu, std)
         dist = TransformedDistribution(base_dist, [TanhTransform()])
 
+        actions = torch.clamp(actions, -1 + EPS, 1 - EPS)
         log_prob = dist.log_prob(actions).sum(-1)
 
         return log_prob
@@ -77,11 +84,11 @@ class Critic(nn.Module):
     def forward(self, observation: torch.Tensor, previous_action: torch.Tensor):
         z_obs = self.net(observation)
         z_action = self.action_encoder(previous_action)
-        z = torch.cat([z_obs, z_action], dim=-1)
+        z = torch.cat([z_obs, z_action.squeeze(1)], dim=-1)
         return self.fc(z).squeeze(-1)
 
 def compute_gae(rewards, values, dones, gamma=0.99, lam=0.95):
-    T = len(rewards)
+    T = rewards.shape[0]
     advantages = torch.zeros_like(rewards)
     last_adv = 0
 

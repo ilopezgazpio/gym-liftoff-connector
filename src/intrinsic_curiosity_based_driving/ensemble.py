@@ -24,7 +24,9 @@ class EnsembleModel(nn.Module):
             #nn.Dropout(p=0.5),
             nn.Linear(self.input_size*4, latent_dim)
         )
-    def forward(self, h):
+    def forward(self, latent, action):
+        act = action.clone().squeeze(1)
+        h = torch.cat([latent, act], dim = -1)
         return self.net(h)
 
 class ResBlock(nn.Module):

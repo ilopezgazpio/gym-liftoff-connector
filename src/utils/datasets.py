@@ -5,11 +5,6 @@ from torch.utils.data import Dataset
 import torch
 import pickle
 
-from intrinsic_curiosity_based_driving.train import reward, advantages
-
-
-#from ..intrinsic_curiosity_based_driving.train import log_probs, previous_action
-
 
 class VideoFramesDataset(Dataset):
     def __init__(self, lmdb_path, indices=None, transform=None):
@@ -50,6 +45,7 @@ class LMDBIntrinsicCuriosityDataset(Dataset):
         self.env = lmdb.open(lmdb_path, readonly=True, lock=False)
         with self.env.begin() as txn:
             self.keys = [key for key, _ in txn.cursor()]
+        self.keys = sorted(self.keys, key=lambda x: int(x.decode()))
     def __len__(self):
         return len(self.keys) - 1
     def __getitem__(self, idx):
@@ -89,21 +85,25 @@ class PPODataset(Dataset):
         self.dones = dones
         self.past_actions = past_actions
         self.rewards = rewards
+        self.advantages = advantages
+        self.values = values
+        self.returns = returns
+
         if rewards is None:
-            self.rewards = [0.0]*len(log_probs)
+            self.rewards = torch.zeros(len(log_probs), dtype=torch.float32)
         if advantages is None:
-            self.advantages = [0.0]*len(log_probs)
+            self.advantages = torch.zeros(len(log_probs), dtype=torch.float32)
         if values is None:
-            self.values = [0.0]*len(log_probs)
+            self.values = torch.zeros(len(log_probs), dtype=torch.float32)
         if returns is None:
-            self.returns = [0.0]*len(log_probs)
+            self.returns = torch.zeros(len(log_probs), dtype=torch.float32)
 
     def __len__(self):
         return len(self.log_probs)
 
     def __getitem__(self, idx):
         log_prob = self.log_probs[idx]
-        done = self.dones[idx]
+        done = torch.tensor(self.dones[idx], dtype=torch.float32)
         prev_action = self.past_actions[idx]
         reward = self.rewards[idx]
         adv = self.advantages[idx]
