@@ -252,6 +252,7 @@ for episode in range(NUM_EPISODES):
         decoder_opt.step()
         z_detached = z.detach()
         # Ensemble models backprop
+        print(z_next)
         for nsbl, optimizer in zip(ensemble, ensemble_opt):
 
             pred = nsbl(z_detached, act.detach())
@@ -326,9 +327,9 @@ for episode in range(NUM_EPISODES):
             surr1 = ratio*b_adv
             surr2 = torch.clamp(ratio, 1.0 - clip_eps, 1.0 + clip_eps) * b_adv
 
-            print("new_log_probs:", b_new_probs.min().item(), b_new_probs.max().item())
-            print("old_log_probs:", old_log_probs.min().item(), old_log_probs.max().item())
-            print("diff:", (b_new_probs - old_log_probs).min().item(), (b_new_probs - old_log_probs).max().item())
+            #print("new_log_probs:", b_new_probs.min().item(), b_new_probs.max().item())
+            #print("old_log_probs:", old_log_probs.min().item(), old_log_probs.max().item())
+            #print("diff:", (b_new_probs - old_log_probs).min().item(), (b_new_probs - old_log_probs).max().item())
 
             actor_loss = -torch.mean(torch.min(surr1, surr2))
 
