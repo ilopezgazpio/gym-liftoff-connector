@@ -33,7 +33,14 @@ models_dir = current_dir / "models"
 last_episode_saving_path = models_dir / "last_episode.txt"
 models_dir.mkdir(exist_ok=True, parents=True)
 
-env = Liftoff(continuous_action_mode=True)
+max_time_per_episode = [
+    0, # Day
+    0, # Hour
+    2, # Minute
+    0 # second
+]
+
+env = Liftoff(continuous_action_mode=True, max_episode_time = max_time_per_episode)
 
 print("Observation space:", env.observation_space)
 print("Action space:", env.action_space)
