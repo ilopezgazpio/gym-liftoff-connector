@@ -1,7 +1,7 @@
 from gym_liftoff.envs.liftoff_env import Liftoff
 
 from src.utils.datasets import LMDBIntrinsicCuriosityDataset
-from .ensemble import EnsembleModel, StateAutoEncoder, StateEncoder, StateDecoder
+from .ensemble import EnsembleModel, StateEncoder, StateDecoder
 from .policy import Actor, Critic, compute_gae
 from .lmdb_utils import LMDBWriter
 from queue import Queue
