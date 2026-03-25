@@ -44,7 +44,7 @@ class ResBlock(nn.Module):
         return F.relu(out + identity)
 
 class StateEncoder(nn.Module):
-    def __init__(self, latent_dim, normalize_latents = False):
+    def __init__(self, latent_dim, normalize_latents = True):
         super().__init__()
         self.encoder = nn.Sequential(
             nn.Conv2d(3, 32, 4, 2, 1),
