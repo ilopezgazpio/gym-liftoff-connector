@@ -260,7 +260,7 @@ for episode in range(NUM_EPISODES):
         for nsbl, optimizer in zip(ensemble, ensemble_opt):
 
             pred = nsbl(z_detached, act.detach())
-            mask = torch.bernoulli(0.8 * torch.ones(pred.size(0), device=pred.device)).bool()
+            mask = torch.bernoulli(0.5 * torch.ones(pred.size(0), device=pred.device)).bool()
 
             if mask.sum() == 0:
                 mask[:] = True
