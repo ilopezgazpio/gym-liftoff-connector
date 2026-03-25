@@ -150,7 +150,6 @@ class Liftoff(gym.Env):
             action = discrete2continuous(action)
         if self.past_action is None:
             self.past_action = np.zeros_like(action)
-            return 0
         if terminated:
             return float(-10)
 
