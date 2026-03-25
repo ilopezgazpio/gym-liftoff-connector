@@ -45,6 +45,7 @@ ACTION_DIM = 4
 BATCH_SIZE = 10
 QUEUE_MAX = 500
 LAMBDA = 1 # weighs the intrinsic reward in the total reward
+BETA = 0.5 # weights the ensemble loss in the encoder
 PPO_EPOCHS = 4
 PPO_BATCH = 10
 
@@ -62,6 +63,7 @@ checkpoint = None
 
 try:
     last_episode = read_last_episode()
+    last_episode = -1
     checkpoint = torch.load(models_dir / f"models_optimizers_{last_episode}.pth")
 
     encoder.load_state_dict(checkpoint["models"]["encoder"])
@@ -82,7 +84,7 @@ learning_rate = 1e-3
 encoder_opt = Adam(encoder.parameters(), lr = learning_rate)
 decoder_opt = Adam(decoder.parameters(), lr = learning_rate)
 actor_opt = Adam(actor.parameters(), lr = 1e-4)
-critic_opt = Adam(critic.parameters(), lr = learning_rate)
+critic_opt = Adam(critic.parameters(), lr = 1e-4)
 ensemble_opt = [Adam(ens.parameters(), lr = learning_rate) for ens in ensemble]
 
 if checkpoint:
@@ -141,11 +143,11 @@ for episode in range(NUM_EPISODES):
     while not done:
         # convertir obs a tensor
         obs_tensor = torch.from_numpy(obs).float() / 255.0
-        obs_tensor = normalize(obs_tensor)
-        obs_tensor = obs_tensor.unsqueeze(0)
+        obs_tensor_norm = normalize(obs_tensor)
+        obs_tensor_norm = obs_tensor_norm.unsqueeze(0)
 
         # acción del policy PPO
-        action, log_prob = actor.sample_action(obs_tensor.to(device), previous_action)
+        action, log_prob = actor.sample_action(obs_tensor_norm.to(device), previous_action)
 
         # ejecutar acción
         next_obs, reward, terminated, truncated, info = env.step(action.squeeze(0).detach().cpu().numpy())
@@ -237,7 +239,8 @@ for episode in range(NUM_EPISODES):
 
         # Encoder Backprop
         encoder_opt.zero_grad()
-        (total_encoder_loss := reconstruction_loss + torch.clamp(ensemble_loss, 0, 10)).backward()
+        #(total_encoder_loss := reconstruction_loss + torch.clamp(ensemble_loss, 0, 10)).backward()
+        (total_encoder_loss := reconstruction_loss + BETA*ensemble_loss).backward()
         encoder_opt.step()
 
         for nsbl in ensemble:
@@ -318,10 +321,11 @@ for episode in range(NUM_EPISODES):
             b_obs, b_acts, _, _ = [x.to(device) for x in intrinsic_batch]
             old_log_probs, _, b_past_acts, _, b_adv, b_val, b_return = [x.to(device) for x in ppo_batch]
 
+            b_obs_norm = normalize(b_obs)
             b_acts = b_acts.squeeze(1).requires_grad_(False)
-            b_obs = b_obs.requires_grad_(False)
+            b_obs_norm = b_obs_norm.requires_grad_(False)
             b_past_acts = b_past_acts.squeeze(1)
-            b_new_probs = actor.get_log_probs(b_obs, b_past_acts, b_acts)
+            b_new_probs = actor.get_log_probs(b_obs_norm, b_past_acts, b_acts)
 
             ratio = torch.exp(b_new_probs - old_log_probs.detach())
             ratio = torch.clamp(ratio, 0, 10)
@@ -338,7 +342,7 @@ for episode in range(NUM_EPISODES):
             actor_loss.backward()
             torch.nn.utils.clip_grad_norm_(actor.parameters(), max_norm=0.5)
             actor_opt.step()
-            value_pred = critic(b_obs, b_past_acts.detach())
+            value_pred = critic(b_obs_norm, b_past_acts.detach())
             critic_loss = F.mse_loss(value_pred, b_return)
             critic_opt.zero_grad()
             critic_loss.backward()

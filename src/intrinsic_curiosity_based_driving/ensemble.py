@@ -104,7 +104,8 @@ class StateDecoder(nn.Module):
             nn.ReLU(),
 
             nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
-            nn.Conv2d(32, 3, 3, padding=1)
+            nn.Conv2d(32, 3, 3, padding=1),
+            nn.Sigmoid()
         )
     def forward(self, z):
         x = self.fc(z)
