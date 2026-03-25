@@ -15,9 +15,11 @@ for episode in range(100):
         position = step["position"]  # normalmente un array de 3 elementos
         velocity = step["velocity"]  # array de 3 elementos
         gyro = step["gyro"]  # array de 3 elementos
-        input_data = step["input"]  # array de 4 elementos
-        reward = step["reward"]
+        input_data = step["input"]
+        speed = step["speed"]
+        mov = step["movement"]
+        inpu = step["input_active"]# array de 4 elementos
 
-        print(f"Step {i}: timestamp={timestamp}, pos={position}, vel={velocity}, reward={reward}")
+        print(f"Step {i}: timestamp={timestamp}, pos={position}, vel={velocity}, gyro={gyro}, input={input_data}, speed={speed}, movement={mov}, input_active={inpu}")
 
 print(f"Número de pasos en el episodio: {len(episode_data)}")
