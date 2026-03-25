@@ -207,6 +207,7 @@ class Liftoff(gym.Env):
             time.sleep(1)
 
         self.time = 0
+        self.past_action = None
         self.state = self.video_sampler.sample(region=(1280, 0, 1920, 1080))
         observation = self.observation()
         done = self.__episode_terminated__(info)
@@ -229,6 +230,7 @@ class Liftoff(gym.Env):
             time.sleep(2)
 
         self.time = 0
+        self.past_action = None
         self.state = self.video_sampler.sample()
         observation = self.observation()
         self.crash_detector.reset()

@@ -18,6 +18,7 @@ import lmdb
 
 current_dir = Path(__file__).resolve().parent
 lmdb_path = current_dir / "lmdb_episode"
+info_path = current_dir / "infos"
 
 def save_last_episode(episode:int):
     with last_episode_saving_path.open("w") as f:
@@ -52,7 +53,7 @@ ACTION_DIM = 4
 BATCH_SIZE = 10
 QUEUE_MAX = 500
 LAMBDA = 1 # weighs the intrinsic reward in the total reward
-BETA = 0.5 # weights the ensemble loss in the encoder
+BETA = 0.2 # weights the ensemble loss in the encoder
 PPO_EPOCHS = 4
 PPO_BATCH = 10
 
@@ -191,7 +192,8 @@ for episode in range(NUM_EPISODES):
     writer.put(last_step)
     writer.close()
 
-
+    with open(f"{str(info_path)}/{episode}.pkl", "wb") as f:
+        pickle.dump(infos, f)
     del previous_action
     del reward
     del info
@@ -263,7 +265,6 @@ for episode in range(NUM_EPISODES):
         decoder_opt.step()
         z_detached = z.detach()
         # Ensemble models backprop
-        print(z_next)
         for nsbl, optimizer in zip(ensemble, ensemble_opt):
 
             pred = nsbl(z_detached, act.detach())

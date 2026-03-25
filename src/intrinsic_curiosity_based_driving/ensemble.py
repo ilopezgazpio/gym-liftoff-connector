@@ -13,12 +13,9 @@ class EnsembleModel(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(self.input_size, self.input_size*4),
             nn.ReLU(),
-            nn.Linear(self.input_size*4, self.input_size*8),
+            nn.Linear(self.input_size*4, self.input_size*4),
             nn.ReLU(),
-            nn.Linear(self.input_size*8, self.input_size*8),
-            nn.ReLU(),
-            nn.Linear(self.input_size*8, self.input_size*4),
-            nn.ReLU(),
+
             # TODO: Sería interesante probar p2e con dropout en vez de bootstrapping
             #       Esto añadiría ruidp de Bernouilli a los pesos. Por tanto el entrenamiento seguramente será más ruidoso
             #nn.Dropout(p=0.5),
@@ -74,7 +71,6 @@ class StateEncoder(nn.Module):
         z = self.fc(x)
 
         if self.normalize_latents:
-            # Normaliza cada muestra individualmente (LayerNorm)
             z = self.layernorm(z)
         else:
             # Alternativa: limitar rango con tanh

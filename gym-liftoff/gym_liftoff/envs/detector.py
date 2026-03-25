@@ -3,7 +3,7 @@ import struct
 import numpy as np
 
 class CrashDetector:
-    def __init__(self, vel_min = 1e-2, input_min = 1e-2, pos_min = 0.01, crash_threshold_counter = 10):
+    def __init__(self, vel_min = 1e-2, input_min = 1e-1, pos_min = 0.01, crash_threshold_counter = 10):
         self.vel_min = vel_min
         self.input_min = input_min
         self.pos_min = pos_min
@@ -34,7 +34,9 @@ class CrashDetector:
             movement = np.linalg.norm(pos - self.last_pos)
             speed = np.linalg.norm(vel)
             input_active = np.linalg.norm(inp) > self.input_min
-
+            info["speed"] = speed
+            info["input_active"] = input_active
+            info["movement"] = movement
             #if (movement < self.pos_min or speed < self.vel_min) and input_active:
             if speed < self.vel_min and input_active:
                 self.crash_counter += 1
@@ -43,6 +45,8 @@ class CrashDetector:
 
             if self.crash_counter >= self.crash_threshold_counter:
                 self.drone_reset = True
+
+
 
         self.last_pos = pos
         self.last_timestamp = timestamp
