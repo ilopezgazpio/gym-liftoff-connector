@@ -4,7 +4,7 @@ from queue import Queue
 from threading import Thread
 
 class LMDBWriter:
-    def __init__(self, lmdb_path, batch_size=32, queue_size=500, map_size=20*1024**3):
+    def __init__(self, lmdb_path, batch_size=32, queue_size=500, map_size=16*1024**3):
         self.lmdb_path = lmdb_path
         self.queue_size = queue_size
         self.map_size = map_size
@@ -47,7 +47,7 @@ class LMDBWriter:
 
     def open(self):
         self.closed = False
-        self.env = lmdb.open(self.lmdb_path)
+        self.env = lmdb.open(self.lmdb_path, map_size = self.map_size)
         self.remove_database(False)
         self.queue = Queue(maxsize=self.queue_size)
         self.thread = Thread(target=self._writer_thread, daemon=True)
