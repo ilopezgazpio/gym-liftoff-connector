@@ -128,7 +128,7 @@ for episode in range(NUM_EPISODES):
     infos = []
     actor = actor.to(device)
 
-    writer.open()
+    writer.clear_database()
 
     # reset del env
     obs, _ = env.reset()
@@ -351,8 +351,6 @@ for episode in range(NUM_EPISODES):
     del values
 
     torch.cuda.empty_cache()
-
-    writer.remove_database()
 
     if episode % 100 == 0 and episode != 0:
         all_models = {
