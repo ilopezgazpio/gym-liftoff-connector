@@ -44,7 +44,7 @@ class ResBlock(nn.Module):
         return F.relu(out + identity)
 
 class StateEncoder(nn.Module):
-    def __init__(self, latent_dim):
+    def __init__(self, latent_dim, normalize_latents = False):
         super().__init__()
         self.encoder = nn.Sequential(
             nn.Conv2d(3, 32, 4, 2, 1),
@@ -61,11 +61,16 @@ class StateEncoder(nn.Module):
         self.res = ResBlock(512)
         self.flatten = nn.Flatten()
         self.fc = nn.Linear(512 * 8 * 8, latent_dim)
+        self.normalize_latents = normalize_latents
     def forward(self, x):
         x = self.encoder(x)
         x = self.res(x)
         x = self.flatten(x)
         z = self.fc(x)
+        if self.normalize_latents:
+            z = (z - z.mean(dim=0, keepdim=True)) / (z.std(dim=0, keepdim=True) + 1e-8)
+        else:
+            z = torch.tanh(z)
         return z
 
 class StateDecoder(nn.Module):
@@ -98,16 +103,7 @@ class StateDecoder(nn.Module):
         x = self.decoder(x)
         return x
 
-class StateAutoEncoder(nn.Module):
-    def __init__(self, latent_dim):
-        super().__init__()
-        self.encoder = StateEncoder(latent_dim)
-        self.decoder = StateDecoder(latent_dim)
 
-    def forward(self, observation):
-        z = self.encoder(observation) # LATENT VECTOR
-        x = self.decoder(z) # RECONSTRUCTION
-        return x, z
 
 
 

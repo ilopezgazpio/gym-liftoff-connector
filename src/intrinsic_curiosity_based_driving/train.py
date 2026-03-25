@@ -256,6 +256,10 @@ for episode in range(NUM_EPISODES):
 
             pred = nsbl(z_detached, act.detach())
             mask = torch.bernoulli(0.8 * torch.ones(pred.size(0), device=pred.device)).bool()
+
+            if mask.sum() == 0:
+                mask[:] = True
+
             loss = F.mse_loss(pred[mask], z_next[mask].detach())
 
             optimizer.zero_grad()
@@ -367,6 +371,7 @@ for episode in range(NUM_EPISODES):
             }
         }
         torch.save(all_models, models_dir / f"models_optimizers_{episode}.pth")
+        save_last_episode(episode=episode)
 
 
 

@@ -7,7 +7,6 @@ import tkinter as tk
 import time
 import torch
 import pyautogui
-from gym_liftoff.envs.liftoff_wrappers import LiftoffWrapNormalizedActions
 from gym_liftoff.envs.action_mode import *
 from gym_liftoff.envs.rewards import *
 from gym_liftoff.envs.telemetry import init_udp_socket
