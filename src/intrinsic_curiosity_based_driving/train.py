@@ -287,6 +287,7 @@ for episode in range(NUM_EPISODES):
         ensemble_preds_ir = torch.stack(ensemble_preds)
 
         ir = torch.var(ensemble_preds_ir, dim=0, unbiased=False)
+        ir = ir + 1e-6
         ir = ir.mean(dim=1)  # [batch]
 
         print(f"Intrinsic reward mean: {ir.mean().item():.4f}, std: {ir.std().item():.4f}")

@@ -69,12 +69,14 @@ class StateEncoder(nn.Module):
         x = self.res(x)
         x = self.flatten(x)
         z = self.fc(x)
-
-        if self.normalize_latents:
+        """
+                if self.normalize_latents:
             z = self.layernorm(z)
         else:
             # Alternativa: limitar rango con tanh
             z = torch.tanh(z)
+        """
+
 
         return z
 
