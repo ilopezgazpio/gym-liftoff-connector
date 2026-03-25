@@ -128,6 +128,7 @@ for episode in range(NUM_EPISODES):
     infos = []
     actor = actor.to(device)
 
+    writer.open()
     writer.clear_database()
 
     # reset del env
