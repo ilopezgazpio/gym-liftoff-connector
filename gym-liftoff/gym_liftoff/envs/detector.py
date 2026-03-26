@@ -1,15 +1,11 @@
 import numpy as np
 
 class CrashDetector:
-    def __init__(self, vel_min=1e-2, crash_threshold_counter=10, up_threshold=0.5):
-        """
-        vel_min: velocidad mínima para considerar que se ha detenido
-        crash_threshold_counter: número de iteraciones consecutivas para considerar crash
-        up_threshold: umbral para detectar dron invertido o de lado
-        """
+    def __init__(self, vel_min=1e-2, input_min=1e-1, crash_threshold_counter=10, attitude_threshold=0.7):
         self.vel_min = vel_min
+        self.input_min = input_min
         self.crash_threshold_counter = crash_threshold_counter
-        self.up_threshold = up_threshold
+        self.attitude_threshold = attitude_threshold  # coseno del ángulo con up
         self.last_pos = None
         self.last_timestamp = 0.0
         self.crash_counter = 0
@@ -25,41 +21,37 @@ class CrashDetector:
         pos = info["position"]
         timestamp = info["timestamp"]
         vel = info["velocity"]
-        qx, qy, qz, qw = info["attitude"]
+        inp = info["input"]
+        attitude = info["attitude"]  # quaternion x,y,z,w
 
         speed = np.linalg.norm(vel)
+        input_active = np.linalg.norm(inp) > self.input_min
         info["speed"] = speed
+        info["input_active"] = input_active
 
-        # Primero revisamos si la telemetría es consistente
-        if self.last_pos is not None and timestamp < self.last_timestamp - 0.01:
-            self.drone_reset = True
+        # ignorar la primera iteración
+        if self.last_pos is None:
+            self.last_pos = pos
+            self.last_timestamp = timestamp
+            return False
 
-        # Solo chequeamos crash si ya tenemos posición previa
-        if self.last_pos is not None:
-            # Rotamos el vector up del dron al mundo
-            up_world = self.quaternion_rotate_vector(qx, qy, qz, qw, np.array([0, 1, 0]))
-
-            print(up_world)
-
-            # Si velocidad baja y el dron no está recto, contamos como crash
-            if speed < self.vel_min and abs(up_world[1]) < self.up_threshold:
+        # si velocidad baja, comprobar orientación
+        if speed < self.vel_min:
+            # extraer vector up del cuaternión
+            qx, qy, qz, qw = attitude
+            up_y = 1 - 2*(qx**2 + qz**2)  # coseno del ángulo con el eje Y global
+            # up_y ~1 → recto, ~0 → de lado, ~-1 → boca abajo
+            if up_y < self.attitude_threshold:
                 self.crash_counter += 1
             else:
                 self.crash_counter = 0
+        else:
+            self.crash_counter = 0
 
-            if self.crash_counter >= self.crash_threshold_counter:
-                self.drone_reset = True
+        if self.crash_counter >= self.crash_threshold_counter:
+            self.drone_reset = True
 
         self.last_pos = pos
         self.last_timestamp = timestamp
-        return self.drone_reset
 
-    @staticmethod
-    def quaternion_rotate_vector(qx, qy, qz, qw, v):
-        """
-        Rota el vector v usando el cuaternión q = [qx,qy,qz,qw]
-        """
-        q_vec = np.array([qx, qy, qz])
-        uv = np.cross(q_vec, v)
-        uuv = np.cross(q_vec, uv)
-        return v + 2 * (qw * uv + uuv)
+        return self.drone_reset
