@@ -263,26 +263,33 @@ class Liftoff(gym.Env):
 
         return self.crash_detector.is_crashed(info)
 
-    def read_telemetry(self):
-        try:
-            data, _ = self.sock.recvfrom(128)
-            if len(data) < 72:
-                return None
-            unpacked = struct.unpack('18f', data[:72])
-            
-            
-        except BlockingIOError:
-            print("BlockingIOException reading LiftOff Telemetry")
+    def read_latest_telemetry(sock):
+        latest = None
+        while True:
+            try:
+                data, _ = sock.recvfrom(4096)  # leer todo lo disponible
+                latest = data
+            except BlockingIOError:
+                break  # ya no hay más paquetes
+
+        if latest is None:
+            # no llegó nada en este ciclo
             return None
 
-        timestamp = unpacked[0]
-        pos = np.array(unpacked[1:4])  # PositionX, Y, Z
-        att = np.array(unpacked[4:8])  # Attitude X/Y/Z/W
-        vel = np.array(unpacked[8:11])  # SpeedX/Y/Z
-        gyro = np.array(unpacked[11:14])  # GyroPitch/Roll/Yaw
-        inp = np.array(unpacked[14:18])  # InputThrottle/Yaw/Pitch/Roll
+        if len(latest) < 72:
+            # paquete demasiado corto
+            return None
 
-        info = {
+        unpacked = struct.unpack('18f', latest[:72])
+
+        timestamp = unpacked[0]
+        pos = np.array(unpacked[1:4])
+        att = np.array(unpacked[4:8])
+        vel = np.array(unpacked[8:11])
+        gyro = np.array(unpacked[11:14])
+        inp = np.array(unpacked[14:18])
+
+        return {
             'timestamp': timestamp,
             'position': pos,
             'attitude': att,
@@ -290,8 +297,6 @@ class Liftoff(gym.Env):
             'gyro': gyro,
             'input': inp
         }
-
-        return info
 
 
 
