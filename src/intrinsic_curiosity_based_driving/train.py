@@ -290,6 +290,8 @@ for episode in range(NUM_EPISODES):
         ir = ir.mean(dim=1)  # [batch]
 
         print(f"Intrinsic reward mean: {ir.mean().item():.4f}, std: {ir.std().item():.4f}")
+        print(f"Intrinsic Reward: ", ir)
+        print("Enviroment Reward ", env_reward)
         # TODO: Ponderar si es necesario
         total_reward = env_reward + LAMBDA*ir
 
