@@ -263,7 +263,7 @@ class Liftoff(gym.Env):
 
         return self.crash_detector.is_crashed(info)
 
-    def read_latest_telemetry(sock):
+    def read_telemetry(sock):
         latest = None
         while True:
             try:
