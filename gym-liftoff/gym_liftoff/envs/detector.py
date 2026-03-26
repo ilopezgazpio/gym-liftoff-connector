@@ -65,11 +65,11 @@ class CrashDetector:
         if att is not None:
             # att = [qx, qy, qz, qw]
             qx, qy, qz, qw = att
-
+            print(att)
 
             gz_world = qw*qw - qx*qx - qy*qy + qz*qz
             info["up_dot_z"] = gz_world
-
+            print(gz_world)
             if gz_world < self.upside_dot_threshold and np.linalg.norm(vel) < self.vel_min:
                 self.drone_reset = True
 
