@@ -91,7 +91,9 @@ class CrashDetector:
 
             # if up vector points downward enough and velocity is small → crash
             speed = np.linalg.norm(vel)
-            if up_y_world < self.flip_dot_threshold and speed < self.vel_min:
+            #print(up_y_world)
+            print(att)
+            if up_y_world < self.upside_dot_threshold and speed < self.vel_min:
                 self.drone_reset = True
 
         self.last_pos = pos
