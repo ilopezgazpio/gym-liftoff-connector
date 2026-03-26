@@ -41,6 +41,7 @@ class CrashDetector:
             qx, qy, qz, qw = attitude
             up_y = 1 - 2*(qx**2 + qz**2)  # coseno del ángulo con el eje Y global
             # up_y ~1 → recto, ~0 → de lado, ~-1 → boca abajo
+            print(up_y)
             if up_y < self.attitude_threshold:
                 self.crash_counter += 1
             else:
