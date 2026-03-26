@@ -263,11 +263,11 @@ class Liftoff(gym.Env):
 
         return self.crash_detector.is_crashed(info)
 
-    def read_telemetry(sock):
+    def read_telemetry(self):
         latest = None
         while True:
             try:
-                data, _ = sock.recvfrom(4096)  # leer todo lo disponible
+                data, _ = self.sock.recvfrom(4096)  # leer todo lo disponible
                 latest = data
             except BlockingIOError:
                 break  # ya no hay más paquetes
