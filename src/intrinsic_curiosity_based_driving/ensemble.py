@@ -13,13 +13,13 @@ class EnsembleModel(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(self.input_size, self.input_size*2),
             nn.ReLU(),
-            nn.Linear(self.input_size*2, self.input_size*4),
+            nn.Linear(self.input_size*2, self.input_size*2),
             nn.ReLU(),
 
             # TODO: Sería interesante probar p2e con dropout en vez de bootstrapping
             #       Esto añadiría ruidp de Bernouilli a los pesos. Por tanto el entrenamiento seguramente será más ruidoso
             #nn.Dropout(p=0.5),
-            nn.Linear(self.input_size*4, latent_dim)
+            nn.Linear(self.input_size*2, latent_dim)
         )
     def forward(self, latent, action):
         act = action.clone().squeeze(1)
