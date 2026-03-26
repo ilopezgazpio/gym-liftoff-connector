@@ -237,6 +237,7 @@ for episode in range(NUM_EPISODES):
             ensemble_losses.append(loss)
             ensemble_preds.append(pred_next_z)
 
+
         ensemble_loss = torch.stack(ensemble_losses).mean()
         #print(ensemble_preds)
         print(f"Reconstruction loss: {reconstruction_loss.item():.4f}, Ensemble loss: {ensemble_loss.item():.4f}")
@@ -286,12 +287,14 @@ for episode in range(NUM_EPISODES):
 
         ensemble_preds_ir = torch.stack(ensemble_preds)
 
+        print(ensemble_preds_ir.shape)
+
         ir = torch.var(ensemble_preds_ir, dim=0, unbiased=False)
         ir = ir.mean(dim=1)  # [batch]
 
         print(f"Intrinsic reward mean: {ir.mean().item():.4f}, std: {ir.std().item():.4f}")
         print(f"Intrinsic Reward: ", ir)
-        print("Enviroment Reward ", env_reward)
+        #print("Enviroment Reward ", env_reward)
         # TODO: Ponderar si es necesario
         total_reward = env_reward + LAMBDA*ir
 
