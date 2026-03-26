@@ -270,10 +270,10 @@ for episode in range(NUM_EPISODES):
 
             pred = nsbl(z_detached, act.detach())
             mask = torch.bernoulli(0.5 * torch.ones(pred.size(0), device=pred.device)).bool()
-            print(mask.sum())
+            #print(mask.sum())
             if mask.sum() == 0:
                 mask[:] = True
-            print(pred[mask])
+            #print(pred[mask])
             loss = F.mse_loss(pred[mask], z_next[mask].detach())
 
             optimizer.zero_grad()
