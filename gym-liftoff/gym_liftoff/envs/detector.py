@@ -1,33 +1,23 @@
 import numpy as np
 
 class CrashDetector:
-    def __init__(self,
-                 vel_min=1e-2,
-                 input_min=1e-1,
-                 pos_min=0.01,
-                 crash_threshold_counter=10,
-                 upside_dot_threshold=0.2):
+    def __init__(self, vel_min=1e-2, crash_threshold_counter=10, up_threshold=0.5):
         """
-        vel_min: velocidad mínima para considerar que el dron no se mueve
-        input_min: mínimo input activo
-        crash_threshold_counter: nº de pasos consecutivos para marcar crash
-        upside_dot_threshold: si el eje "arriba" del dron (transformado)
-                              tiene componente vertical < threshold → invertido
+        vel_min: velocidad mínima para considerar que se ha detenido
+        crash_threshold_counter: número de iteraciones consecutivas para considerar crash
+        up_threshold: umbral para detectar dron invertido o de lado
         """
         self.vel_min = vel_min
-        self.input_min = input_min
-        self.pos_min = pos_min
         self.crash_threshold_counter = crash_threshold_counter
-        self.upside_dot_threshold = upside_dot_threshold
-
-        self.last_timestamp = 0.0
+        self.up_threshold = up_threshold
         self.last_pos = None
+        self.last_timestamp = 0.0
         self.crash_counter = 0
         self.drone_reset = False
 
     def reset(self):
-        self.last_timestamp = 0.0
         self.last_pos = None
+        self.last_timestamp = 0.0
         self.crash_counter = 0
         self.drone_reset = False
 
@@ -35,95 +25,41 @@ class CrashDetector:
         pos = info["position"]
         timestamp = info["timestamp"]
         vel = info["velocity"]
-        inp = info["input"]
-        gyro = info["gyro"]
-        att = info.get("attitude")  # cuaternion (qx,qy,qz,qw)
+        qx, qy, qz, qw = info["attitude"]
 
+        speed = np.linalg.norm(vel)
+        info["speed"] = speed
+
+        # Primero revisamos si la telemetría es consistente
         if self.last_pos is not None and timestamp < self.last_timestamp - 0.01:
             self.drone_reset = True
-        """
-                if self.last_pos is not None:
-            speed = np.linalg.norm(vel)
-            input_active = np.linalg.norm(inp) > self.input_min
-            gy = np.linalg.norm(gyro)
-            movement = np.linalg.norm(pos - self.last_pos)
 
-            info["speed"] = speed
-            info["input_active"] = input_active
-            info["movement"] = movement
+        # Solo chequeamos crash si ya tenemos posición previa
+        if self.last_pos is not None:
+            # Rotamos el vector up del dron al mundo
+            up_world = self.quaternion_rotate_vector(qx, qy, qz, qw, np.array([0, 1, 0]))
 
-            # sin movimiento y sin giro, pero con input activo
-            if (speed < self.vel_min and gy < 0.3) and input_active:
+            print(up_world)
+
+            # Si velocidad baja y el dron no está recto, contamos como crash
+            if speed < self.vel_min and abs(up_world[1]) < self.up_threshold:
                 self.crash_counter += 1
             else:
                 self.crash_counter = 0
 
             if self.crash_counter >= self.crash_threshold_counter:
                 self.drone_reset = True
-        """
-
-        if att is not None:
-            qx, qy, qz, qw = att
-
-            # quaternion vector rotation: rotate local up vector (0,1,0) into world space
-            # quaternion multiplication helper
-            def quat_mul(a, b):
-                ax, ay, az, aw = a
-                bx, by, bz, bw = b
-                return np.array([
-                    aw * bx + ax * bw + ay * bz - az * by,
-                    aw * by - ax * bz + ay * bw + az * bx,
-                    aw * bz + ax * by - ay * bx + az * bw,
-                    aw * bw - ax * bx - ay * by - az * bz,
-                ])
-
-            # body up vector in quaternion form
-            body_up = np.array([0.0, 1.0, 0.0, 0.0])
-
-            # rotate up vector to world
-            q = np.array([qx, qy, qz, qw])
-            q_conj = np.array([-qx, -qy, -qz, qw])  # conjugate of quaternion
-            v = quat_mul(quat_mul(q, body_up), q_conj)
-
-            # v[1] is world-space Y of body up vector
-            up_y_world = v[1]
-            info["up_y_world"] = up_y_world
-
-            # if up vector points downward enough and velocity is small → crash
-            speed = np.linalg.norm(vel)
-            #print(up_y_world)
-            print(att)
-            if up_y_world < self.upside_dot_threshold and speed < self.vel_min:
-                self.drone_reset = True
 
         self.last_pos = pos
         self.last_timestamp = timestamp
-
         return self.drone_reset
 
-    def body_up_in_world(self, qx, qy, qz, qw):
-        # Construimos cuaternion y su conjugado
-        q = np.array([qx, qy, qz, qw])
-        q_conj = np.array([-qx, -qy, -qz, qw])
-
-        # vector up en cuerpo = (0,1,0)
-        v = np.array([0., 1., 0., 0.])  # cuaternion p
-        # rotación: v' = q * v * q_conj
-        # producto q * v
-        qv = self.quaternion_multiply(q, v)
-        # resultado
-        rotated = self.quaternion_multiply(qv, q_conj)
-        print(rotated)
-        # rotated[1] es la componente Y mundial del eje up
-        return rotated[1]
-
-    def quaternion_multiply(self, q, r):
-        # q = [x,y,z,w], r = [x',y',z',w']
-        x1, y1, z1, w1 = q
-        x2, y2, z2, w2 = r
-        return np.array([
-            w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
-            w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
-            w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
-            w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
-        ])
+    @staticmethod
+    def quaternion_rotate_vector(qx, qy, qz, qw, v):
+        """
+        Rota el vector v usando el cuaternión q = [qx,qy,qz,qw]
+        """
+        q_vec = np.array([qx, qy, qz])
+        uv = np.cross(q_vec, v)
+        uuv = np.cross(q_vec, uv)
+        return v + 2 * (qw * uv + uuv)
