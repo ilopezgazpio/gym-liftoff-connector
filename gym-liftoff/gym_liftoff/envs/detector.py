@@ -6,7 +6,7 @@ class CrashDetector:
                  input_min=1e-1,
                  pos_min=0.01,
                  crash_threshold_counter=10,
-                 upside_dot_threshold=-0.8):
+                 upside_dot_threshold=0.2):
         """
         vel_min: velocidad mínima para considerar que el dron no se mueve
         input_min: mínimo input activo
@@ -63,15 +63,35 @@ class CrashDetector:
         """
 
         if att is not None:
-            # att = [qx, qy, qz, qw]
             qx, qy, qz, qw = att
-            #print(att)
 
-            gz_world = qw*qw - qx*qx - qy*qy + qz*qz
-            info["up_dot_z"] = gz_world
-            #print(gz_world)
-            #print(self.body_up_in_world(qx, qy, qz, qw))
-            if self.body_up_in_world(qx, qy, qz, qw) < self.upside_dot_threshold and np.linalg.norm(vel) < self.vel_min:
+            # quaternion vector rotation: rotate local up vector (0,1,0) into world space
+            # quaternion multiplication helper
+            def quat_mul(a, b):
+                ax, ay, az, aw = a
+                bx, by, bz, bw = b
+                return np.array([
+                    aw * bx + ax * bw + ay * bz - az * by,
+                    aw * by - ax * bz + ay * bw + az * bx,
+                    aw * bz + ax * by - ay * bx + az * bw,
+                    aw * bw - ax * bx - ay * by - az * bz,
+                ])
+
+            # body up vector in quaternion form
+            body_up = np.array([0.0, 1.0, 0.0, 0.0])
+
+            # rotate up vector to world
+            q = np.array([qx, qy, qz, qw])
+            q_conj = np.array([-qx, -qy, -qz, qw])  # conjugate of quaternion
+            v = quat_mul(quat_mul(q, body_up), q_conj)
+
+            # v[1] is world-space Y of body up vector
+            up_y_world = v[1]
+            info["up_y_world"] = up_y_world
+
+            # if up vector points downward enough and velocity is small → crash
+            speed = np.linalg.norm(vel)
+            if up_y_world < self.flip_dot_threshold and speed < self.vel_min:
                 self.drone_reset = True
 
         self.last_pos = pos
