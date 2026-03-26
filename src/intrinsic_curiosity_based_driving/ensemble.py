@@ -11,9 +11,9 @@ class EnsembleModel(nn.Module):
         super(EnsembleModel, self).__init__()
         self.input_size = latent_dim + action_dim
         self.net = nn.Sequential(
-            nn.Linear(self.input_size, self.input_size*4),
+            nn.Linear(self.input_size, self.input_size*2),
             nn.ReLU(),
-            nn.Linear(self.input_size*4, self.input_size*4),
+            nn.Linear(self.input_size*2, self.input_size*4),
             nn.ReLU(),
 
             # TODO: Sería interesante probar p2e con dropout en vez de bootstrapping
@@ -69,14 +69,8 @@ class StateEncoder(nn.Module):
         x = self.res(x)
         x = self.flatten(x)
         z = self.fc(x)
-        """
-                if self.normalize_latents:
-            z = self.layernorm(z)
-        else:
-            # Alternativa: limitar rango con tanh
-            z = torch.tanh(z)
-        """
 
+        z = self.layernorm(z)
 
         return z
 

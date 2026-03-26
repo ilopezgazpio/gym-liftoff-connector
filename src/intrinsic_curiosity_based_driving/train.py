@@ -52,8 +52,8 @@ LATENT_DIM = 256
 ACTION_DIM = 4
 BATCH_SIZE = 10
 QUEUE_MAX = 500
-LAMBDA = 1 # weighs the intrinsic reward in the total reward
-BETA = 0.2 # weights the ensemble loss in the encoder
+LAMBDA = 0.5 # weighs the intrinsic reward in the total reward
+BETA = 0.1 # weights the ensemble loss in the encoder
 PPO_EPOCHS = 4
 PPO_BATCH = 10
 
@@ -287,21 +287,11 @@ for episode in range(NUM_EPISODES):
         ensemble_preds_ir = torch.stack(ensemble_preds)
 
         ir = torch.var(ensemble_preds_ir, dim=0, unbiased=False)
-        ir = ir + 1e-6
         ir = ir.mean(dim=1)  # [batch]
 
         print(f"Intrinsic reward mean: {ir.mean().item():.4f}, std: {ir.std().item():.4f}")
         # TODO: Ponderar si es necesario
         total_reward = env_reward + LAMBDA*ir
-
-        if total_reward.numel() > 1:
-            reward_std = total_reward.std()
-            if reward_std > 1e-8:
-                total_reward = (total_reward - total_reward.mean()) / (reward_std + 1e-8)
-            else:
-                total_reward = total_reward - total_reward.mean()  # Solo centrar si no hay varianza
-        else:
-            total_reward = total_reward - total_reward.mean()
 
         reward = total_reward
         value = critic(obs, prev_action)
