@@ -6,7 +6,7 @@ class CrashDetector:
                  input_min=1e-1,
                  pos_min=0.01,
                  crash_threshold_counter=10,
-                 upside_dot_threshold=-0.1):
+                 upside_dot_threshold=-0.8):
         """
         vel_min: velocidad mínima para considerar que el dron no se mueve
         input_min: mínimo input activo
@@ -77,3 +77,30 @@ class CrashDetector:
         self.last_timestamp = timestamp
 
         return self.drone_reset
+
+    def body_up_in_world(self, qx, qy, qz, qw):
+        # Construimos cuaternion y su conjugado
+        q = np.array([qx, qy, qz, qw])
+        q_conj = np.array([-qx, -qy, -qz, qw])
+
+        # vector up en cuerpo = (0,1,0)
+        v = np.array([0., 1., 0., 0.])  # cuaternion p
+        # rotación: v' = q * v * q_conj
+        # producto q * v
+        qv = self.quaternion_multiply(q, v)
+        # resultado
+        rotated = self.quaternion_multiply(qv, q_conj)
+
+        # rotated[1] es la componente Y mundial del eje up
+        return rotated[1]
+
+    def quaternion_multiply(self, q, r):
+        # q = [x,y,z,w], r = [x',y',z',w']
+        x1, y1, z1, w1 = q
+        x2, y2, z2, w2 = r
+        return np.array([
+            w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+            w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+            w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+            w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
+        ])
