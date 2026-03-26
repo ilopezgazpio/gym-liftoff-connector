@@ -6,7 +6,7 @@ class CrashDetector:
                  input_min=1e-1,
                  pos_min=0.01,
                  crash_threshold_counter=10,
-                 upside_dot_threshold=0.0):
+                 upside_dot_threshold=-0.1):
         """
         vel_min: velocidad mínima para considerar que el dron no se mueve
         input_min: mínimo input activo
