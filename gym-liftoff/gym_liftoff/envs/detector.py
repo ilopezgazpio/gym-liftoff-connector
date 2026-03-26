@@ -41,8 +41,8 @@ class CrashDetector:
 
         if self.last_pos is not None and timestamp < self.last_timestamp - 0.01:
             self.drone_reset = True
-
-        if self.last_pos is not None:
+        """
+                if self.last_pos is not None:
             speed = np.linalg.norm(vel)
             input_active = np.linalg.norm(inp) > self.input_min
             gy = np.linalg.norm(gyro)
@@ -60,7 +60,7 @@ class CrashDetector:
 
             if self.crash_counter >= self.crash_threshold_counter:
                 self.drone_reset = True
-
+        """
 
         if att is not None:
             # att = [qx, qy, qz, qw]
