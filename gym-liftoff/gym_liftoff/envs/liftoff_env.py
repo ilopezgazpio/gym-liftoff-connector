@@ -265,12 +265,14 @@ class Liftoff(gym.Env):
 
     def read_telemetry(self):
         latest = None
+        self.sock.recvfrom(256)
         while True:
             try:
-                data, _ = self.sock.recvfrom(4096)  # leer todo lo disponible
+                data, _ = self.sock.recvfrom(128)  # leer todo lo disponible
                 latest = data
+                break
             except BlockingIOError:
-                break  # ya no hay más paquetes
+                continue  # ya no hay más paquetes
 
         if latest is None:
             # no llegó nada en este ciclo
