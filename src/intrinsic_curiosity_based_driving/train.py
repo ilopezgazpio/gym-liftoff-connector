@@ -37,7 +37,7 @@ models_dir.mkdir(exist_ok=True, parents=True)
 max_time_per_episode = [
     0, # Day
     0, # Hour
-    2, # Minute
+    1, # Minute
     0 # second
 ]
 
