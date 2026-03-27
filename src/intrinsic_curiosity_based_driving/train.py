@@ -52,10 +52,14 @@ LATENT_DIM = 256
 ACTION_DIM = 4
 BATCH_SIZE = 10
 QUEUE_MAX = 500
-LAMBDA = 2 # weighs the intrinsic reward in the total reward
+LAMBDA = 0.6 # weighs the intrinsic reward in the total reward
 BETA = 0.1 # weights the ensemble loss in the encoder
 PPO_EPOCHS = 4
 PPO_BATCH = 10
+
+running_mean_ir = 0.0
+running_std_ir = 1.0
+gamma_ir = 0.99
 
 # =================
 # Models
@@ -250,7 +254,7 @@ for episode in range(NUM_EPISODES):
         # Encoder Backprop
         encoder_opt.zero_grad()
         #(total_encoder_loss := reconstruction_loss + torch.clamp(ensemble_loss, 0, 10)).backward()
-        (total_encoder_loss := reconstruction_loss + BETA*ensemble_loss).backward()
+        (total_encoder_loss := reconstruction_loss + BETA*torch.clamp(ensemble_loss, 0, 5)).backward()
         encoder_opt.step()
 
         for nsbl in ensemble:
@@ -296,7 +300,17 @@ for episode in range(NUM_EPISODES):
         #print(f"Intrinsic Reward: ", ir)
         #print("Enviroment Reward ", env_reward)
         # TODO: Ponderar si es necesario
-        total_reward = env_reward + LAMBDA*ir
+        batch_mean = ir.mean()
+        batch_std = ir.std(unbiased=False)
+
+        # Actualizar running mean/std
+        running_mean_ir = gamma_ir * running_mean_ir + (1 - gamma_ir) * batch_mean.item()
+        running_std_ir = gamma_ir * running_std_ir + (1 - gamma_ir) * batch_std.item()
+
+        # Normalizar
+        normalized_ir = (ir - running_mean_ir) / (running_std_ir + 1e-8)
+
+        total_reward = env_reward + LAMBDA*normalized_ir
 
         reward = total_reward
         value = critic(obs, prev_action)
