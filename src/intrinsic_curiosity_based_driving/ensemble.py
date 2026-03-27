@@ -19,7 +19,7 @@ class EnsembleModel(nn.Module):
             nn.ReLU(),
             # TODO: Sería interesante probar p2e con dropout en vez de bootstrapping
             #       Esto añadiría ruidp de Bernouilli a los pesos. Por tanto el entrenamiento seguramente será más ruidoso
-            nn.Linear(self.input_size*2, latent_dim)
+            nn.Linear(self.input_size*4, latent_dim)
         )
     def forward(self, latent, action):
         act = action.clone().squeeze(1)
