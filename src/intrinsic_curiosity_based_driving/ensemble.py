@@ -61,16 +61,15 @@ class StateEncoder(nn.Module):
         self.fc = nn.Linear(512 * 8 * 8, latent_dim)
 
         # LayerNorm asegura estabilidad incluso con batch=1
-        self.layernorm = nn.LayerNorm(latent_dim)
+        self.layernorm = nn.LayerNorm(512*8*8)
         self.normalize_latents = normalize_latents
 
     def forward(self, x):
         x = self.encoder(x)
         x = self.res(x)
         x = self.flatten(x)
+        x = self.layernorm(x)
         z = self.fc(x)
-
-        z = self.layernorm(z)
 
         return z
 
