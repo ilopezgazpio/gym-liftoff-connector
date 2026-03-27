@@ -11,15 +11,23 @@ class EnsembleModel(nn.Module):
         super(EnsembleModel, self).__init__()
         self.input_size = latent_dim + action_dim
         self.net = nn.Sequential(
-            nn.Linear(self.input_size, self.input_size*4),
-            nn.ReLU(),
-            nn.Linear(self.input_size*4, self.input_size*8),
-            nn.ReLU(),
+            nn.Linear(self.input_size, self.input_size * 4),
+            nn.LayerNorm(self.input_size * 4),
+            nn.LeakyReLU(0.1),
+
+            nn.Linear(self.input_size * 4, self.input_size * 8),
+            nn.LayerNorm(self.input_size * 8),
+            nn.LeakyReLU(0.1),
+
+            nn.Linear(self.input_size * 8, self.input_size * 8),
+            nn.LayerNorm(self.input_size * 8),
+            nn.LeakyReLU(0.1),
+
             nn.Linear(self.input_size * 8, self.input_size * 4),
-            nn.ReLU(),
-            # TODO: Sería interesante probar p2e con dropout en vez de bootstrapping
-            #       Esto añadiría ruidp de Bernouilli a los pesos. Por tanto el entrenamiento seguramente será más ruidoso
-            nn.Linear(self.input_size*4, latent_dim)
+            nn.LayerNorm(self.input_size * 4),
+            nn.LeakyReLU(0.1),
+
+            nn.Linear(self.input_size * 4, latent_dim)
         )
     def forward(self, latent, action):
         act = action.clone().squeeze(1)
