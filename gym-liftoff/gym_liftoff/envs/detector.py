@@ -1,7 +1,7 @@
 import numpy as np
 
 class CrashDetector:
-    def __init__(self, vel_min=1e-2, input_min=1e-1, crash_threshold_counter=10, attitude_threshold=0.7):
+    def __init__(self, vel_min=10, input_min=1e-1, crash_threshold_counter=10, attitude_threshold=-0.65):
         self.vel_min = vel_min
         self.input_min = input_min
         self.crash_threshold_counter = crash_threshold_counter
@@ -23,7 +23,6 @@ class CrashDetector:
         vel = info["velocity"]
         inp = info["input"]
         attitude = info["attitude"]  # quaternion x,y,z,w
-
         speed = np.linalg.norm(vel)
         input_active = np.linalg.norm(inp) > self.input_min
         info["speed"] = speed
@@ -35,19 +34,21 @@ class CrashDetector:
             self.last_timestamp = timestamp
             return False
 
-        # si velocidad baja, comprobar orientación
         if speed < self.vel_min:
-            # extraer vector up del cuaternión
             qx, qy, qz, qw = attitude
-            up_y = 1 - 2*(qx**2 + qz**2)  # coseno del ángulo con el eje Y global
-            # up_y ~1 → recto, ~0 → de lado, ~-1 → boca abajo
-            print(up_y)
+            up_y = 1 - 2*(qx**2 + qz**2)
+
             if up_y < self.attitude_threshold:
                 self.crash_counter += 1
             else:
                 self.crash_counter = 0
+        elif speed < 0.2:
+            self.crash_counter += 1
         else:
             self.crash_counter = 0
+
+        if self.last_timestamp - 0.01 > timestamp:
+            self.drone_reset = True
 
         if self.crash_counter >= self.crash_threshold_counter:
             self.drone_reset = True

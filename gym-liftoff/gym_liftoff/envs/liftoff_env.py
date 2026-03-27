@@ -62,6 +62,8 @@ class Liftoff(gym.Env):
         """
 
         self.sock = init_udp_socket()
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 256)
+        print("Actual Size of the socket: ", self.sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF))
         self.crash_detector = CrashDetector()
 
         logger.info("Initializing environment.....")
@@ -265,7 +267,7 @@ class Liftoff(gym.Env):
 
     def read_telemetry(self):
         latest = None
-        self.sock.recvfrom(256)
+        _ = self.sock.recvfrom(2304)
         while True:
             try:
                 data, _ = self.sock.recvfrom(128)  # leer todo lo disponible
