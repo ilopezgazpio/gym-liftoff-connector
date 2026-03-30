@@ -164,7 +164,7 @@ class Liftoff(gym.Env):
         self.resetting = False
         if self.resetting and not from_reset:
             return
-        if self.action_discretizer:
+        if self.action_discretizer and not from_reset:
             action = self.action_discretizer(action)
         self.virtual_gamepad.act(action)
 
