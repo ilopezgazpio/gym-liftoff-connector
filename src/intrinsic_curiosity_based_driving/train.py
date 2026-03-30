@@ -97,7 +97,7 @@ encoder_opt = Adam(encoder.parameters(), lr = learning_rate)
 decoder_opt = Adam(decoder.parameters(), lr = learning_rate)
 actor_opt = Adam(actor.parameters(), lr = 1e-4)
 critic_opt = Adam(critic.parameters(), lr = 1e-4)
-ensemble_opt = [Adam(ens.parameters(), lr = learning_rate) for ens in ensemble]
+ensemble_opt = [Adam(ens.parameters(), lr = 1e-4) for ens in ensemble]
 
 if checkpoint:
     encoder_opt.load_state_dict(checkpoint["optimizers"]["encoder"])
@@ -273,7 +273,7 @@ for episode in range(NUM_EPISODES):
         for nsbl, optimizer in zip(ensemble, ensemble_opt):
 
             pred = nsbl(z_detached, act.detach())
-            mask = torch.bernoulli(0.5 * torch.ones(pred.size(0), device=pred.device)).bool()
+            mask = torch.bernoulli(0.8 * torch.ones(pred.size(0), device=pred.device)).bool()
             #print(mask.sum())
             if mask.sum() == 0:
                 mask[:] = True
