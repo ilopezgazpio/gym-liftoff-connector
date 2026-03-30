@@ -230,6 +230,7 @@ class Liftoff(gym.Env):
             self.virtual_gamepad.reset()
             pyautogui.press('r')
             time.sleep(2)
+            self.act([1400, 1024, 1024, 1024], from_reset=True)
 
         self.time = 0
         self.past_action = None

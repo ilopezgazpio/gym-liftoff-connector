@@ -154,6 +154,7 @@ for episode in range(NUM_EPISODES):
     torch.cuda.empty_cache()
     while not done:
         # convertir obs a tensor
+
         obs_tensor = torch.from_numpy(obs).float() / 255.0
         obs_tensor_norm = normalize(obs_tensor)
         obs_tensor_norm = obs_tensor_norm.unsqueeze(0)
@@ -196,8 +197,6 @@ for episode in range(NUM_EPISODES):
     writer.put(last_step)
     writer.close()
 
-    with open(f"{str(info_path)}/{episode}.pkl", "wb") as f:
-        pickle.dump(infos, f)
     del previous_action
     del reward
     del info
