@@ -34,6 +34,42 @@ class EnsembleModel(nn.Module):
         h = torch.cat([latent, act], dim = -1)
         return self.net(h)
 
+class BigEnsembleModel(nn.Module):
+    def __init__(self, latent_dim, action_dim):
+        super(BigEnsembleModel, self).__init__()
+        self.input_size = latent_dim + action_dim
+        self.net = nn.Sequential(
+            nn.Linear(self.input_size, self.input_size * 4),
+            nn.LayerNorm(self.input_size * 4),
+            nn.LeakyReLU(0.1),
+
+            nn.Linear(self.input_size*4, self.input_size * 4),
+            nn.LayerNorm(self.input_size * 4),
+            nn.LeakyReLU(0.1),
+
+            nn.Linear(self.input_size * 4, self.input_size * 8),
+            nn.LayerNorm(self.input_size * 8),
+            nn.LeakyReLU(0.1),
+
+            nn.Linear(self.input_size * 8, self.input_size * 8),
+            nn.LayerNorm(self.input_size * 8),
+            nn.LeakyReLU(0.1),
+
+            nn.Linear(self.input_size * 8, self.input_size * 8),
+            nn.LayerNorm(self.input_size * 8),
+            nn.LeakyReLU(0.1),
+
+            nn.Linear(self.input_size * 8, self.input_size * 16),
+            nn.LayerNorm(self.input_size * 16),
+            nn.LeakyReLU(0.1),
+
+            nn.Linear(self.input_size * 16, latent_dim)
+        )
+    def forward(self, latent, action):
+        act = action.clone().squeeze(1)
+        h = torch.cat([latent, act], dim = -1)
+        return self.net(h)
+
 class ResBlock(nn.Module):
     def __init__(self, channels):
         super().__init__()
