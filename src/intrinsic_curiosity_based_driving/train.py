@@ -303,12 +303,15 @@ for episode in range(NUM_EPISODES):
         batch_mean = ir.mean()
         batch_std = ir.std(unbiased=False)
 
-        # Actualizar running mean/std
-        running_mean_ir = gamma_ir * running_mean_ir + (1 - gamma_ir) * batch_mean.item()
-        running_std_ir = gamma_ir * running_std_ir + (1 - gamma_ir) * batch_std.item()
 
         # Normalizar
-        normalized_ir = (ir - running_mean_ir) / (running_std_ir + 1e-8)
+        if ir.numel() > 1 and running_std_ir > 1e-8:
+            running_mean_ir = gamma_ir * running_mean_ir + (1 - gamma_ir) * batch_mean.item()
+            running_std_ir = gamma_ir * running_std_ir + (1 - gamma_ir) * batch_std.item()
+            normalized_ir = (ir - running_mean_ir) / running_std_ir
+        else:
+            # Evitar NaN cuando batch es 1 o std muy pequeño
+            normalized_ir = (ir - running_mean_ir) / running_std_ir
 
         total_reward = env_reward + LAMBDA*normalized_ir
 
@@ -344,6 +347,15 @@ for episode in range(NUM_EPISODES):
             b_obs_norm = b_obs_norm.requires_grad_(False)
             b_past_acts = b_past_acts.squeeze(1)
             b_new_probs = actor.get_log_probs(b_obs_norm, b_past_acts, b_acts)
+
+            if b_adv.numel() > 1:
+                adv_std = b_adv.std(unbiased=False)
+                if adv_std > 1e-8:
+                    b_adv = (b_adv - b_adv.mean()) / (adv_std + 1e-8)
+                else:
+                    b_adv = b_adv - b_adv.mean()  # Solo centrar si no hay varianza
+            else:
+                b_adv = b_adv - b_adv.mean()
 
             ratio = torch.exp(b_new_probs - old_log_probs.detach())
             ratio = torch.clamp(ratio, 0, 10)
