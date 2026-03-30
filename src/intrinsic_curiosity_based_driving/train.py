@@ -50,12 +50,12 @@ NUM_EPISODES = 10000
 NUM_ENSEMBLE_MODELS = 8
 LATENT_DIM = 256
 ACTION_DIM = 4
-BATCH_SIZE = 10
+BATCH_SIZE = 32
 QUEUE_MAX = 500
 LAMBDA = 0.6 # weighs the intrinsic reward in the total reward
 BETA = 0.1 # weights the ensemble loss in the encoder
 PPO_EPOCHS = 4
-PPO_BATCH = 10
+PPO_BATCH = 32
 
 running_mean_ir = 0.0
 running_std_ir = 1.0
