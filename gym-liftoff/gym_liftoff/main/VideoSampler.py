@@ -1,7 +1,7 @@
 import pyautogui
 import cv2
 import numpy as np
-import pytesseract
+#import pytesseract
 import re
 import torch
 import torchvision
