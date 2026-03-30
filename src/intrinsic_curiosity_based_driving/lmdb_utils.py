@@ -11,7 +11,7 @@ class LMDBWriter:
         self.batch_size = batch_size
         self.idx = 0
         self.closed = True
-        self.open()
+        #self.open()
 
     def _writer_thread(self):
         while True:
