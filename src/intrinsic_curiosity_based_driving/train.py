@@ -380,7 +380,7 @@ for episode in range(NUM_EPISODES):
                 b_adv = b_adv - b_adv.mean()
 
             ratio = torch.exp(b_new_probs - old_log_probs.detach())
-            ratio = torch.clamp(ratio, 0, 10)
+            #ratio = torch.clamp(ratio, 0, 10)
             surr1 = ratio*b_adv
             surr2 = torch.clamp(ratio, 1.0 - clip_eps, 1.0 + clip_eps) * b_adv
 

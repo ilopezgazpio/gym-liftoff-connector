@@ -7,7 +7,7 @@ from torch.distributions import Normal, TransformedDistribution
 from torch.distributions.transforms import TanhTransform
 
 LOG_STD_MIN = -20
-LOG_STD_MAX = 2
+LOG_STD_MAX = 1
 EPS = 1e-6
 
 class Actor(nn.Module):
@@ -37,6 +37,7 @@ class Actor(nn.Module):
         log_std = self.log_std_layer(z)
         log_std = torch.clamp(log_std, LOG_STD_MIN, LOG_STD_MAX)
         std = torch.exp(log_std)
+        std = torch.clamp(std, 1e-6, 1.0)
 
         return mu, std
 
@@ -62,7 +63,9 @@ class Actor(nn.Module):
         dist = TransformedDistribution(base_dist, [TanhTransform()])
 
         actions = torch.clamp(actions, -1 + EPS, 1 - EPS)
-        log_prob = dist.log_prob(actions).sum(-1)
+        log_prob = dist.log_prob(actions)
+        log_prob = torch.where(torch.isfinite(log_prob), log_prob, torch.zeros_like(log_prob))
+        log_prob = log_prob.sum(-1)
 
         return log_prob
 
