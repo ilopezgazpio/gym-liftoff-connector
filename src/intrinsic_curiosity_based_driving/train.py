@@ -50,7 +50,7 @@ print("Action space:", env.action_space)
 
 NUM_EPISODES = 10000
 NUM_ENSEMBLE_MODELS = 8
-LATENT_DIM = 256
+LATENT_DIM = 128
 ACTION_DIM = 4
 BATCH_SIZE = 32
 QUEUE_MAX = 500 # Maximum numbers of elements in the queue for inserting in lmdb
