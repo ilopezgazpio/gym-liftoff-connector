@@ -77,7 +77,7 @@ checkpoint = None
 
 try:
     last_episode = read_last_episode()
-    last_episode = -1
+    last_episode = 200
     checkpoint = torch.load(models_dir / f"models_optimizers_{last_episode}.pth")
 
     encoder.load_state_dict(checkpoint["models"]["encoder"])
