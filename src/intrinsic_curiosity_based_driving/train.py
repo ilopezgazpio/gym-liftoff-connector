@@ -78,9 +78,10 @@ ensemble = [SmallEnsemble(LATENT_DIM, ACTION_DIM) for _ in range(NUM_ENSEMBLE_MO
 
 checkpoint = None
 
+last_episode = 0
+
 try:
     last_episode = read_last_episode()
-    last_episode = 200
     checkpoint = torch.load(models_dir / f"models_optimizers_{last_episode}.pth")
 
     encoder.load_state_dict(checkpoint["models"]["encoder"])
@@ -143,7 +144,7 @@ normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std = [0.229, 0.224
 
 torch.cuda.empty_cache()
 
-for episode in range(NUM_EPISODES):
+for episode in range(last_episode, NUM_EPISODES):
     print(f"\n===== EPISODE {episode} =====")
 
     intrinsic_rewards_list = []
@@ -378,15 +379,7 @@ for episode in range(NUM_EPISODES):
             b_past_acts = b_past_acts.squeeze(1)
             b_new_probs = actor.get_log_probs(b_obs_norm, b_past_acts, b_acts)
 
-            if b_adv.numel() > 1:
-                adv_std = b_adv.std(unbiased=False)
-                if adv_std > 1e-8:
-                    b_adv = (b_adv - b_adv.mean()) / (adv_std + 1e-8)
-                else:
-                    b_adv = b_adv - b_adv.mean()  # Solo centrar si no hay varianza
-            else:
-                b_adv = b_adv - b_adv.mean()
-
+            action_penalty = (b_acts ** 2).mean()
             ratio = torch.exp(b_new_probs - old_log_probs.detach())
             #ratio = torch.clamp(ratio, 0, 10)
             surr1 = ratio*b_adv
@@ -395,8 +388,8 @@ for episode in range(NUM_EPISODES):
             #print("new_log_probs:", b_new_probs.min().item(), b_new_probs.max().item())
             #print("old_log_probs:", old_log_probs.min().item(), old_log_probs.max().item())
             #print("diff:", (b_new_probs - old_log_probs).min().item(), (b_new_probs - old_log_probs).max().item())
-
-            actor_loss = -torch.mean(torch.min(surr1, surr2))
+            lambda_action = 0.1
+            actor_loss = -torch.mean(torch.min(surr1, surr2)) + lambda_action * action_penalty
 
             actor_opt.zero_grad()
             actor_loss.backward()
