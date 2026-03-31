@@ -153,7 +153,7 @@ class Liftoff(gym.Env):
         if self.past_action is None:
             self.past_action = np.zeros_like(action)
         if terminated:
-            return float(-10)
+            return float(-100)
 
         delta_action = abs(action - self.past_action)
         self.past_action = action

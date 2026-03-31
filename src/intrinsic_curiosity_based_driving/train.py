@@ -15,6 +15,7 @@ import torch
 from torchvision import transforms
 import pickle
 import lmdb
+import gc
 
 current_dir = Path(__file__).resolve().parent
 lmdb_path = current_dir / "lmdb_episode"
@@ -141,10 +142,8 @@ for episode in range(NUM_EPISODES):
     env_rewards = []
     infos = []
     actor = actor.to(device)
-
     writer.open()
     writer.clear_database()
-
     # reset del env
     obs, _ = env.reset()
     done = False
@@ -154,7 +153,6 @@ for episode in range(NUM_EPISODES):
     torch.cuda.empty_cache()
     while not done:
         # convertir obs a tensor
-
         obs_tensor = torch.from_numpy(obs).float() / 255.0
         obs_tensor_norm = normalize(obs_tensor)
         obs_tensor_norm = obs_tensor_norm.unsqueeze(0)
@@ -196,7 +194,6 @@ for episode in range(NUM_EPISODES):
     last_step = {"img": obs, "step": step}
     writer.put(last_step)
     writer.close()
-
     del previous_action
     del reward
     del info
@@ -272,7 +269,7 @@ for episode in range(NUM_EPISODES):
         for nsbl, optimizer in zip(ensemble, ensemble_opt):
 
             pred = nsbl(z_detached, act.detach())
-            mask = torch.bernoulli(0.8 * torch.ones(pred.size(0), device=pred.device)).bool()
+            mask = torch.bernoulli(0.5 * torch.ones(pred.size(0), device=pred.device)).bool()
             #print(mask.sum())
             if mask.sum() == 0:
                 mask[:] = True
@@ -380,10 +377,12 @@ for episode in range(NUM_EPISODES):
             print(f"PPO epoch actor_loss: {actor_loss.item():.4f}, critic_loss: {critic_loss.item():.4f}")
 
     critic = critic.to(cpu)
+    del intrinsic_curiosity_loader
+    del intrinsic_curiosity_dataset
     del final_rewards
     del dones
     del values
-
+    gc.collect()
     torch.cuda.empty_cache()
 
     if episode % 100 == 0 and episode != 0:
@@ -405,6 +404,8 @@ for episode in range(NUM_EPISODES):
         }
         torch.save(all_models, models_dir / f"models_optimizers_{episode}.pth")
         save_last_episode(episode=episode)
+
+
 
 
 
