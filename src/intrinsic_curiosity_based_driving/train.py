@@ -55,7 +55,7 @@ ACTION_DIM = 4
 BATCH_SIZE = 32
 QUEUE_MAX = 500 # Maximum numbers of elements in the queue for inserting in lmdb
 LAMBDA = 0.6 # weighs the intrinsic reward in the total reward
-BETA = 0.1 # weights the ensemble loss in the encoder
+BETA = 0.4 # weights the ensemble loss in the encoder
 PPO_EPOCHS = 4
 PPO_BATCH = 32
 
@@ -244,6 +244,23 @@ for episode in range(NUM_EPISODES):
         reconstruct_obs = decoder(z)
         reconstruction_loss = F.mse_loss(reconstruct_obs, obs)
 
+        z_detached = z.detach()
+        # Ensemble models backprop
+
+        for nsbl, optimizer in zip(ensemble, ensemble_opt):
+
+            pred = nsbl(z_detached, act.detach())
+            mask = torch.bernoulli(0.5 * torch.ones(pred.size(0), device=pred.device)).bool()
+            # print(mask.sum())
+            if mask.sum() == 0:
+                mask[:] = True
+            # print(pred[mask])
+            loss = F.mse_loss(pred[mask], z_next[mask].detach())
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
         ensemble_losses = []
         ensemble_preds = []
         for nsbl in ensemble:
@@ -281,24 +298,9 @@ for episode in range(NUM_EPISODES):
         decoder_opt.zero_grad()
         decoder_loss.backward()
         decoder_opt.step()
-        z_detached = z.detach()
-        # Ensemble models backprop
 
         decoder_losses_list.append(decoder_loss.item())
 
-        for nsbl, optimizer in zip(ensemble, ensemble_opt):
-
-            pred = nsbl(z_detached, act.detach())
-            mask = torch.bernoulli(0.5 * torch.ones(pred.size(0), device=pred.device)).bool()
-            #print(mask.sum())
-            if mask.sum() == 0:
-                mask[:] = True
-            #print(pred[mask])
-            loss = F.mse_loss(pred[mask], z_next[mask].detach())
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
         """
         ir = torch.mean(torch.var(ensemble_preds, dim=1, unbiased=False), dim=1)
         ir = (ir - ir.mean()) / (ir.std() + 1e-8)
