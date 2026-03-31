@@ -1,7 +1,7 @@
 from gym_liftoff.envs.liftoff_env import Liftoff
 
 from src.utils.datasets import LMDBIntrinsicCuriosityDataset
-from .ensemble import EnsembleModel, StateEncoder, StateDecoder
+from .ensemble import BigEnsembleModel, StateEncoder, StateDecoder
 from .policy import Actor, Critic, compute_gae
 from .lmdb_utils import LMDBWriter
 from queue import Queue
@@ -69,7 +69,7 @@ encoder = StateEncoder(latent_dim=LATENT_DIM)
 decoder = StateDecoder(latent_dim=LATENT_DIM)
 actor = Actor(action_dim=ACTION_DIM)
 critic = Critic(action_dim=ACTION_DIM)
-ensemble = [EnsembleModel(LATENT_DIM, ACTION_DIM) for _ in range(NUM_ENSEMBLE_MODELS)]
+ensemble = [BigEnsembleModel(LATENT_DIM, ACTION_DIM) for _ in range(NUM_ENSEMBLE_MODELS)]
 
 checkpoint = None
 
