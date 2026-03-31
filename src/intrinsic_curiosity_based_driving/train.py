@@ -1,7 +1,7 @@
 from gym_liftoff.envs.liftoff_env import Liftoff
 
 from src.utils.datasets import LMDBIntrinsicCuriosityDataset
-from .ensemble import BigEnsembleModel, StateEncoder, StateDecoder
+from .ensemble import SmallEnsemble, StateEncoder, StateDecoder
 from .policy import Actor, Critic, compute_gae
 from .lmdb_utils import LMDBWriter
 from queue import Queue
@@ -50,7 +50,7 @@ print("Action space:", env.action_space)
 
 NUM_EPISODES = 10000
 NUM_ENSEMBLE_MODELS = 8
-LATENT_DIM = 128
+LATENT_DIM = 64
 ACTION_DIM = 4
 BATCH_SIZE = 32
 QUEUE_MAX = 500 # Maximum numbers of elements in the queue for inserting in lmdb
@@ -71,7 +71,7 @@ encoder = StateEncoder(latent_dim=LATENT_DIM)
 decoder = StateDecoder(latent_dim=LATENT_DIM)
 actor = Actor(action_dim=ACTION_DIM)
 critic = Critic(action_dim=ACTION_DIM)
-ensemble = [BigEnsembleModel(LATENT_DIM, ACTION_DIM) for _ in range(NUM_ENSEMBLE_MODELS)]
+ensemble = [SmallEnsemble(LATENT_DIM, ACTION_DIM) for _ in range(NUM_ENSEMBLE_MODELS)]
 
 checkpoint = None
 
@@ -214,11 +214,15 @@ for episode in range(NUM_EPISODES):
 
     print(f"Episode finished in {step} steps, total env reward: {sum(env_rewards):.3f}")
 
+    env_rewards_tensor = torch.Tensor(env_rewards)
+    if env_rewards_tensor.numel() > 1:
+        env_rewards_norm = (env_rewards_tensor - env_rewards_tensor.mean()) / (env_rewards_tensor.std(unbiased=False) + 1e-8)
+
     intrinsic_curiosity_dataset = LMDBIntrinsicCuriosityDataset(lmdb_path=str(lmdb_path))
     intrinsic_curiosity_loader = DataLoader(intrinsic_curiosity_dataset, batch_size = BATCH_SIZE)
 
 
-    ppo_dataset = PPODataset(log_probs = log_probs, dones= dones, past_actions=prev_actions)
+    ppo_dataset = PPODataset(log_probs = log_probs, dones= dones, past_actions=prev_actions, rewards=env_rewards_norm)
     ppo_loader = DataLoader(ppo_dataset, batch_size = BATCH_SIZE)
 
     encoder = encoder.to(device)
@@ -226,12 +230,10 @@ for episode in range(NUM_EPISODES):
     ensemble = [e.to(device) for e in ensemble]
     critic = critic.to(device)
 
-    final_rewards = torch.Tensor().to(device)
-    values = torch.Tensor().to(device)
 
     for intrinsic_batch, ppo_batch in zip(intrinsic_curiosity_loader, ppo_loader):
-        obs, act, env_reward, next_obs = [x.to(device) for x in intrinsic_batch]
-        _, _, prev_action, _, _, _, _ = [x.to(device) for x in ppo_batch]
+        obs, act, unnorm_reward, next_obs = [x.to(device) for x in intrinsic_batch]
+        _, _, prev_action, env_reward, _, _, _ = [x.to(device) for x in ppo_batch]
 
 
         z = encoder(obs)
@@ -335,7 +337,7 @@ for episode in range(NUM_EPISODES):
 
         total_rewards_list.extend(total_reward.detach().cpu().numpy())
         intrinsic_rewards_list.extend(normalized_ir.detach().cpu().numpy())
-        env_rewards_list.extend(env_reward.detach().cpu().numpy())
+        env_rewards_list.extend(unnorm_reward.detach().cpu().numpy())
 
         torch.cuda.empty_cache()
     with torch.no_grad():
@@ -389,6 +391,7 @@ for episode in range(NUM_EPISODES):
             torch.nn.utils.clip_grad_norm_(actor.parameters(), max_norm=0.5)
             actor_opt.step()
             actor_losses_list.append(float(actor_loss.item()))
+
             value_pred = critic(b_obs_norm, b_past_acts.detach())
             critic_loss = F.mse_loss(value_pred, b_return)
             critic_opt.zero_grad()

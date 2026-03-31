@@ -70,6 +70,30 @@ class BigEnsembleModel(nn.Module):
         h = torch.cat([latent, act], dim = -1)
         return self.net(h)
 
+class SmallEnsemble(nn.Module):
+    def __init__(self, latent_dim, action_dim):
+        super().__init__()
+        in_size = latent_dim + action_dim
+        self.net = nn.Sequential(
+            nn.Linear(in_size, 512),
+            nn.LayerNorm(512),
+            nn.LeakyReLU(0.1),
+            nn.Dropout(p=0.1),
+            nn.Linear(512, 512),
+            nn.LayerNorm(512),
+            nn.LeakyReLU(0.1),
+            nn.Linear(512, latent_dim)
+        )
+        for m in self.net:
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_uniform_(m.weight, a=0.1)
+                nn.init.zeros_(m.bias)
+    def forward(self, z, action):
+        act = action.squeeze(1)
+        inp = torch.cat([z, act], dim=1)
+        return self.net(inp)
+
+
 class ResBlock(nn.Module):
     def __init__(self, channels):
         super().__init__()
