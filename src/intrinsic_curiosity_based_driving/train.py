@@ -230,6 +230,8 @@ for episode in range(NUM_EPISODES):
     ensemble = [e.to(device) for e in ensemble]
     critic = critic.to(device)
 
+    final_rewards = torch.Tensor().to(device)
+    values = torch.Tensor().to(device)
 
     for intrinsic_batch, ppo_batch in zip(intrinsic_curiosity_loader, ppo_loader):
         obs, act, unnorm_reward, next_obs = [x.to(device) for x in intrinsic_batch]
