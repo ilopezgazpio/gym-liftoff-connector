@@ -63,6 +63,9 @@ running_mean_ir = 0.0
 running_std_ir = 1.0
 gamma_ir = 0.99
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+cpu = torch.device("cpu")
+
 # =================
 # Models
 # =================
@@ -102,11 +105,16 @@ critic_opt = Adam(critic.parameters(), lr = 1e-4)
 ensemble_opt = [Adam(ens.parameters(), lr = 1e-4) for ens in ensemble]
 
 if checkpoint:
+    encoder = encoder.to(device)
+    decoder = decoder.to(device)
+    actor = actor.to(device)
+    critic = critic.to(device)
+    ensemble = [e.to(device) for e in ensemble]
     encoder_opt.load_state_dict(checkpoint["optimizers"]["encoder"])
     decoder_opt.load_state_dict(checkpoint["optimizers"]["decoder"])
     actor_opt.load_state_dict(checkpoint["optimizers"]["actor"])
     critic_opt.load_state_dict(checkpoint["optimizers"]["critic"])
-    for opt, state in zip(encoder_opt, checkpoint["optimizers"]["ensemble"]):
+    for opt, state in zip(ensemble_opt, checkpoint["optimizers"]["ensemble"]):
         opt.load_state_dict(state)
 
 # =================
