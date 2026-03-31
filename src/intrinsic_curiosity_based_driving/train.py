@@ -13,13 +13,14 @@ from pathlib import Path
 import torch.nn.functional as F
 import torch
 from torchvision import transforms
-import pickle
+import json
 import lmdb
 import gc
 
 current_dir = Path(__file__).resolve().parent
 lmdb_path = current_dir / "lmdb_episode"
 info_path = current_dir / "infos"
+logs_path = current_dir / "training_logs.json"
 
 def save_last_episode(episode:int):
     with last_episode_saving_path.open("w") as f:
@@ -52,7 +53,7 @@ NUM_ENSEMBLE_MODELS = 8
 LATENT_DIM = 256
 ACTION_DIM = 4
 BATCH_SIZE = 32
-QUEUE_MAX = 500
+QUEUE_MAX = 500 # Maximum numbers of elements in the queue for inserting in lmdb
 LAMBDA = 0.6 # weighs the intrinsic reward in the total reward
 BETA = 0.1 # weights the ensemble loss in the encoder
 PPO_EPOCHS = 4
@@ -136,6 +137,16 @@ torch.cuda.empty_cache()
 
 for episode in range(NUM_EPISODES):
     print(f"\n===== EPISODE {episode} =====")
+
+    intrinsic_rewards_list = []
+    total_rewards_list = []
+    env_rewards_list = []
+    encoder_losses_list = []
+    decoder_losses_list = []
+    ensemble_losses_list = []
+    actor_losses_list = []
+    critic_losses_list = []
+
     prev_actions = []
     dones = []
     log_probs = []
@@ -253,6 +264,8 @@ for episode in range(NUM_EPISODES):
         (total_encoder_loss := reconstruction_loss + BETA*torch.clamp(ensemble_loss, 0, 5)).backward()
         encoder_opt.step()
 
+        encoder_losses_list.append(float(total_encoder_loss.item()))
+        ensemble_losses_list.append(float(ensemble_loss.item()))
         for nsbl in ensemble:
             for p in nsbl.parameters():
                 p.requires_grad = True
@@ -266,6 +279,9 @@ for episode in range(NUM_EPISODES):
         decoder_opt.step()
         z_detached = z.detach()
         # Ensemble models backprop
+
+        decoder_losses_list.append(decoder_loss.item())
+
         for nsbl, optimizer in zip(ensemble, ensemble_opt):
 
             pred = nsbl(z_detached, act.detach())
@@ -316,6 +332,10 @@ for episode in range(NUM_EPISODES):
 
         final_rewards = torch.cat([final_rewards, reward])
         values = torch.cat([values, value.detach()])
+
+        total_rewards_list.extend(total_reward.detach().cpu().numpy())
+        intrinsic_rewards_list.extend(normalized_ir.detach().cpu().numpy())
+        env_rewards_list.extend(env_reward.detach().cpu().numpy())
 
         torch.cuda.empty_cache()
     with torch.no_grad():
@@ -368,13 +388,46 @@ for episode in range(NUM_EPISODES):
             actor_loss.backward()
             torch.nn.utils.clip_grad_norm_(actor.parameters(), max_norm=0.5)
             actor_opt.step()
+            actor_losses_list.append(float(actor_loss.item()))
             value_pred = critic(b_obs_norm, b_past_acts.detach())
             critic_loss = F.mse_loss(value_pred, b_return)
             critic_opt.zero_grad()
             critic_loss.backward()
             torch.nn.utils.clip_grad_norm_(critic.parameters(), max_norm=0.5)
             critic_opt.step()
+            critic_losses_list.append(float(critic_loss.item()))
             print(f"PPO epoch actor_loss: {actor_loss.item():.4f}, critic_loss: {critic_loss.item():.4f}")
+
+    episode_log = {
+        "episode": episode,
+        "steps": step,
+        "intrinsic_reward_mean": float(torch.tensor(intrinsic_rewards_list).mean()),
+        "intrinsic_reward_std": float(torch.tensor(intrinsic_rewards_list).std(unbiased=False)),
+        "env_reward_total": float(sum(env_rewards_list)),
+        "total_reward_mean": float(torch.tensor(total_rewards_list).mean()),
+        "total_reward_std": float(torch.tensor(total_rewards_list).std(unbiased=False)),
+        "encoder_loss_mean": float(torch.tensor(encoder_losses_list).mean()),
+        "encoder_loss_std": float(torch.tensor(encoder_losses_list).std(unbiased=False)),
+        "decoder_loss_mean": float(torch.tensor(decoder_losses_list).mean()),
+        "decoder_loss_std": float(torch.tensor(decoder_losses_list).std(unbiased=False)),
+        "ensemble_loss_mean": float(torch.tensor(ensemble_losses_list).mean()),
+        "ensemble_loss_std": float(torch.tensor(ensemble_losses_list).std(unbiased=False)),
+        "actor_loss_mean": float(torch.tensor(actor_losses_list).mean()),
+        "actor_loss_std": float(torch.tensor(actor_losses_list).std(unbiased=False)),
+        "critic_loss_mean": float(torch.tensor(critic_losses_list).mean()),
+        "critic_loss_std": float(torch.tensor(critic_losses_list).std(unbiased=False))
+    }
+
+    if logs_path.exists():
+        with open(logs_path, "r") as f:
+            logs_data = json.load(f)
+    else:
+        logs_data = []
+
+    logs_data.append(episode_log)
+
+    with open(logs_path, "w") as f:
+        json.dump(logs_data, f, indent=2)
 
     critic = critic.to(cpu)
     del intrinsic_curiosity_loader
@@ -404,20 +457,4 @@ for episode in range(NUM_EPISODES):
         }
         torch.save(all_models, models_dir / f"models_optimizers_{episode}.pth")
         save_last_episode(episode=episode)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
