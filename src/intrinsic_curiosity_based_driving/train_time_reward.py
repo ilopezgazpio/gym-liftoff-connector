@@ -86,7 +86,7 @@ last_episode = 0
 
 try:
     last_episode = read_last_episode()
-    checkpoint = torch.load(models_dir / f"models_optimizers_{last_episode}.pth")
+    checkpoint = torch.load(models_dir / f"models_optimizers_time_{last_episode}.pth")
 
     encoder.load_state_dict(checkpoint["models"]["encoder"])
     decoder.load_state_dict(checkpoint["models"]["decoder"])
@@ -467,6 +467,6 @@ for episode in range(last_episode, NUM_EPISODES):
                 "ensemble": [opt.state_dict() for opt in ensemble_opt]
             }
         }
-        torch.save(all_models, models_dir / f"models_optimizers_{episode}.pth")
+        torch.save(all_models, models_dir / f"models_optimizers_time_{episode}.pth")
         save_last_episode(episode=episode)
 
