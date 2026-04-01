@@ -77,6 +77,8 @@ class Liftoff(gym.Env):
         self.video_sampler = VideoSampler.VideoSampler(self.sc_w, self.sc_h)
 
         self.render_mode = 'human'
+        self.current_observation = None
+        self.current_action = None
 
         '''
         Observation space is defined as the screenshot converted to a numpy array
@@ -113,11 +115,7 @@ class Liftoff(gym.Env):
         '''
         Passes the action space from a continuous space to a discretize action space [0, 2047] if activated. 
         '''
-        if continuous_action_mode:
-            self.action_discretizer = continuous2discrete
-            print("WARNING! continuous action mode activated. The range of the agent must be [-1, 1]")
-        else:
-            self.action_discretizer = None
+        self.continuous_action_mode = False
 
         self.still_counter = 0
         self.max_still = 5
@@ -146,26 +144,15 @@ class Liftoff(gym.Env):
         assert array.shape == self.observation_space.shape
         return array
 
-    def _get_reward(self, action, terminated):
-        # 0 if the game finishes
-        if not self.action_discretizer:
-            action = discrete2continuous(action)
-        if self.past_action is None:
-            self.past_action = np.zeros_like(action)
+    def _get_reward(self, terminated):
         if terminated:
             return float(-100)
-
-        delta_action = abs(action - self.past_action)
-        self.past_action = action
-
-        return stability_reward(delta_action)
+        return 0
 
     def act(self, action, from_reset=False):
         self.resetting = False
         if self.resetting and not from_reset:
             return
-        if self.action_discretizer and not from_reset:
-            action = self.action_discretizer(action)
         self.virtual_gamepad.act(action)
 
     def step(self, action):
@@ -177,15 +164,16 @@ class Liftoff(gym.Env):
         '''Send action to liftoff through virtual gamepad'''
         logger.info("Action performed: {}".format(action))
         self.act(action)
+
         ''' Sample liftoff state through video sampler'''
         # TODO: Seguramente que la línea de abajo esté mal pero por si acaso se pone comentada
         #self.state = self.video_sampler.sample(region=(1280, 0, 1920, 1080))
         self.state = self.video_sampler.sample()
-
+        self.current_action = action
         observation = self.observation()
         info = self._get_info()
         terminated = self.__episode_terminated__(info)
-        reward = self._get_reward(action, terminated)
+        reward = self._get_reward(terminated)
         truncated = info["timestamp"] > self.max_episode_time
         if terminated or truncated:
             self._has_reset = False
