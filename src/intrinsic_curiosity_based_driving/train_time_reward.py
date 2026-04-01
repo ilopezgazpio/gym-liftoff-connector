@@ -34,7 +34,7 @@ def read_last_episode():
         return int(f.read())
 
 models_dir = current_dir / "models"
-last_episode_saving_path = models_dir / "last_episode.txt"
+last_episode_saving_path = models_dir / "last_episode_time.txt"
 models_dir.mkdir(exist_ok=True, parents=True)
 
 max_time_per_episode = [
@@ -392,8 +392,7 @@ for episode in range(last_episode, NUM_EPISODES):
             #print("new_log_probs:", b_new_probs.min().item(), b_new_probs.max().item())
             #print("old_log_probs:", old_log_probs.min().item(), old_log_probs.max().item())
             #print("diff:", (b_new_probs - old_log_probs).min().item(), (b_new_probs - old_log_probs).max().item())
-            lambda_action = 0.1
-            actor_loss = -torch.mean(torch.min(surr1, surr2)) + lambda_action * action_penalty
+            actor_loss = -torch.mean(torch.min(surr1, surr2))
 
             actor_opt.zero_grad()
             actor_loss.backward()
