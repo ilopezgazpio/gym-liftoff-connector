@@ -55,7 +55,7 @@ def capture_monitor(monitor):
 def save_frame(frame):
     """Guarda la imagen en el mismo directorio del script."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    path = os.path.join(script_dir, "liftoff_capture.png")
+    path = os.path.join(script_dir, "deprecated_wrappers/liftoff_capture.png")
 
     print(frame.shape)
     print(frame.dtype)

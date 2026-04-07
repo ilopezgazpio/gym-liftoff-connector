@@ -66,7 +66,6 @@ class LiftoffWrapLogTime(gym.Wrapper):
     def __init__(self, env):
         super(LiftoffWrapLogTime, self).__init__(env)
         self.steps = 0
-
     def reset(self, seed = None):
         self.steps = 0
         return self.env.reset(seed)
@@ -75,6 +74,13 @@ class LiftoffWrapLogTime(gym.Wrapper):
         reward += math.log1p(self.steps)
         self.steps += 1
         return obs, reward, done, info
+
+class LiftoffWrapGyro(gym.Wrapper):
+    def __init__(self, env):
+        super(LiftoffWrapGyro, self).__init__(env)
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+
 
 class LiftoffWrapObservation(gym.ObservationWrapper):
     def __init__(self, env, resizeX = 256, resizeY = 256, gray = False):

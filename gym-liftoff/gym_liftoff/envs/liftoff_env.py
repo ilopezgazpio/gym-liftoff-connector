@@ -7,8 +7,6 @@ import tkinter as tk
 import time
 import torch
 import pyautogui
-from gym_liftoff.envs.action_mode import *
-from gym_liftoff.envs.rewards import *
 from gym_liftoff.envs.telemetry import init_udp_socket
 from gym_liftoff.envs.detector import CrashDetector
 import socket
@@ -108,7 +106,7 @@ class Liftoff(gym.Env):
         '''
         Duration of each episode
         '''
-        if max_episode_time: self.max_episode_time = 86400*max_episode_time[0] + 3600*max_episode_time[1] + 60 * max_episode_time[2] + max_episode_time[3]
+        if max_episode_time is not None: self.max_episode_time = 86400*max_episode_time[0] + 3600*max_episode_time[1] + 60 * max_episode_time[2] + max_episode_time[3]
         else:self.max_episode_time = max_episode_time
 
 
@@ -129,7 +127,7 @@ class Liftoff(gym.Env):
         time.sleep(5)
 
     def _get_info(self):
-        road = self.video_sampler.find_road()
+        #road = self.video_sampler.find_road()
         # get the center point of the road and the width and height of the road
         # road is a frame of shape (image_height, image_width, 3), having the road in green and the rest in black
         # road = cv2.cvtColor(road, cv2.COLOR_BGR2GRAY)
@@ -237,7 +235,6 @@ class Liftoff(gym.Env):
     def close(self):
         self.virtual_gamepad.close()
         self.video_sampler.close()
-
         return
 
     def _get_speed(self):

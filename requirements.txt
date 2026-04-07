@@ -11,3 +11,5 @@ PyAutoGUI==0.9.54
 python-uinput==1.0.1
 lmdb
 mss
+zarr>=2.16,<3
+numcodecs>=0.12
