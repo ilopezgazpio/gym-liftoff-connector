@@ -220,7 +220,7 @@ class Liftoff(gym.Env):
         self.state = self.video_sampler.sample()
         observation = self.observation()
         self.crash_detector.reset()
-        info = self.read_telemetry()
+        info = self._get_info()
         return observation, info
 
 
