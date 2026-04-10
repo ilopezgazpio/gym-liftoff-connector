@@ -2,7 +2,7 @@ import lmdb
 import pickle
 import torch
 import random
-from utils.lmdb_utils import LMDBWriter
+from .lmdb_utils import LMDBWriter
 import numpy as np
 from collections import deque
 
