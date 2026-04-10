@@ -343,7 +343,7 @@ for episode in range(last_episode, NUM_EPISODES):
 
     print(f"Intrinsic reward mean: {normalized_ir_episode.mean().item():.4f}, std: {normalized_ir_episode.std().item():.4f}")
 
-    total_reward_tensor = reward_list + LAMBDA*normalized_ir_episode
+    total_reward_tensor = reward_list + LAMBDA*normalized_ir_episode.to(cpu)
 
     for i in range(len(obs_list) - 1):
         replay_data = {
