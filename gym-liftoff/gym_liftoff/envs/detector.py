@@ -21,23 +21,16 @@ class CrashDetector:
         pos = info["position"]
         timestamp = info["timestamp"]
         vel = info["velocity"]
-        inp = info["input"]
-        attitude = info["attitude"]  # quaternion x,y,z,w
         speed = np.linalg.norm(vel)
-        input_active = np.linalg.norm(inp) > self.input_min
-        info["speed"] = speed
-        info["input_active"] = input_active
 
-        # ignorar la primera iteración
         if self.last_pos is None:
             self.last_pos = pos
             self.last_timestamp = timestamp
             return False
 
         if speed < self.vel_min:
-            qx, qy, qz, qw = attitude
-            up_y = 1 - 2*(qx**2 + qz**2)
 
+            up_y = info["rotation"][1, 1]
             if up_y < self.attitude_threshold:
                 self.crash_counter += 1
             else:
@@ -56,4 +49,5 @@ class CrashDetector:
         self.last_pos = pos
         self.last_timestamp = timestamp
 
-        return self.drone_reset
+        return self.drone_reset, info
+

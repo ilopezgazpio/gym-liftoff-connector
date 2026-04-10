@@ -14,9 +14,9 @@ class LiftoffWrapStability(gym.Wrapper):
         self.ponderation = ponderation
         self.current_path = Path(__file__).resolve().parent
         self.max_deltas = self.read_data()
-    def reset(self, seed = None):
+    def reset(self, seed = None, options = None):
         self.past_actions = None
-        return self.env.reset(seed)
+        return self.env.reset(seed, options)
     def step(self, action):
         obs, reward, done, info = self.env.step(action)
 
@@ -66,9 +66,9 @@ class LiftoffWrapLogTime(gym.Wrapper):
     def __init__(self, env):
         super(LiftoffWrapLogTime, self).__init__(env)
         self.steps = 0
-    def reset(self, seed = None):
+    def reset(self, seed = None, options = None):
         self.steps = 0
-        return self.env.reset(seed)
+        return self.env.reset(seed, options)
     def step(self, action):
         obs, reward, done, info = self.env.step(action)
         reward += math.log1p(self.steps)

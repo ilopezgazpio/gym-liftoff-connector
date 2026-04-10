@@ -127,24 +127,21 @@ class Liftoff(gym.Env):
         time.sleep(5)
 
     def _get_info(self):
-        #road = self.video_sampler.find_road()
-        # get the center point of the road and the width and height of the road
-        # road is a frame of shape (image_height, image_width, 3), having the road in green and the rest in black
-        # road = cv2.cvtColor(road, cv2.COLOR_BGR2GRAY)
-        return self.read_telemetry()
+        info = self.read_telemetry()
+        attitude = info["attitude"]
+        info["rotation"] = self.quaternion_to_rotation_matrix(attitude)
+        info["gyro"] = info["gyro"] * (np.pi / 180.0)
+        return info
 
     def observation(self):
         array = np.array(self.state)
         array = np.transpose(array, (2, 0, 1)).reshape((3, self.video_sampler.img_x, self.video_sampler.img_y))
-        #array = np.array(self.state, dtype=np.uint8).reshape((3, self.video_sampler.img_x, self.video_sampler.img_y))
-        # lower the resolution
-        # array = array[::2, ::2]
         assert array.shape == self.observation_space.shape
         return array
 
     def _get_reward(self, terminated):
         if terminated:
-            return float(-100)
+            return float(-3)
         return 0
 
     def act(self, action, from_reset=False):
@@ -170,7 +167,7 @@ class Liftoff(gym.Env):
         self.current_action = action
         observation = self.observation()
         info = self._get_info()
-        terminated = self.__episode_terminated__(info)
+        terminated= self.__episode_terminated__(info)
         reward = self._get_reward(terminated)
         truncated = info["timestamp"] > self.max_episode_time
         if terminated or truncated:
@@ -204,7 +201,7 @@ class Liftoff(gym.Env):
 
         return observation, reward, done, False, info
 
-    def reset(self, seed = None):
+    def reset(self, seed = None, options = None):
         super().reset(seed=seed)
         self._has_reset = True
 
@@ -287,6 +284,15 @@ class Liftoff(gym.Env):
             'gyro': gyro,
             'input': inp
         }
+
+    def quaternion_to_rotation_matrix(self, attitude):
+        qx, qy, qz, qw = attitude
+        R = np.array([
+            [1 - 2 * (qy * qy + qz * qz), 2 * (qx * qy - qz * qw), 2 * (qx * qz + qy * qw)],
+            [2 * (qx * qy + qz * qw), 1 - 2 * (qx * qx + qz * qz), 2 * (qy * qz - qx * qw)],
+            [2 * (qx * qz - qy * qw), 2 * (qy * qz + qx * qw), 1 - 2 * (qx * qx + qy * qy)]
+        ])
+        return R
 
 
 

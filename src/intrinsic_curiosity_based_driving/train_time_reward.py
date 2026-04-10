@@ -4,10 +4,8 @@ from gym_liftoff.envs.liftoff_wrappers import LiftoffWrapStability, LiftoffWrapC
 from src.utils.datasets import LMDBIntrinsicCuriosityDataset
 from .ensemble import SmallEnsemble, StateEncoder, StateDecoder
 from .policy import Actor, Critic, compute_gae
-from .lmdb_utils import LMDBWriter
-from queue import Queue
-from threading import Thread
-from src.utils.datasets import IntrinsicCuriosityDataset, PPODataset
+from utils.lmdb_utils import LMDBWriter
+from src.utils.datasets import PPODataset
 from torch.utils.data import DataLoader
 from torch.optim import Adam
 from pathlib import Path

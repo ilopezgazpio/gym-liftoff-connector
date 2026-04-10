@@ -46,13 +46,11 @@ class Actor(nn.Module):
 
         mu, std = self.forward(observation, previous_action)
 
-        #print("mu:", mu.min().item(), mu.max().item())
-        #print("std:", std.min().item(), std.max().item())
-
         base_dist = Normal(mu, std)
         dist = TransformedDistribution(base_dist, [TanhTransform()])
 
         action = dist.rsample()
+        action = torch.clamp(action, -1 + EPS, 1 - EPS)
         log_prob = dist.log_prob(action).sum(-1)
 
         return action, log_prob
@@ -105,4 +103,5 @@ def compute_gae(rewards, values, dones, gamma=0.99, lam=0.95):
     advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
     # TODO: comprobar que la normalización se ha puesto correctamente
     return advantages, returns
+
 

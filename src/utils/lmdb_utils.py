@@ -4,13 +4,15 @@ from queue import Queue
 from threading import Thread
 
 class LMDBWriter:
-    def __init__(self, lmdb_path, batch_size=32, queue_size=500, map_size=16*1024**3):
+    def __init__(self, lmdb_path, max_size = 50000, batch_size=32, queue_size=500, map_size=16*1024**3, replay_buffer = False):
         self.lmdb_path = lmdb_path
         self.queue_size = queue_size
+        self.max_size = max_size
         self.map_size = map_size
         self.batch_size = batch_size
         self.idx = 0
         self.closed = True
+        self.replay_buffer = replay_buffer
         #self.open()
 
     def _writer_thread(self):
@@ -27,8 +29,14 @@ class LMDBWriter:
             if batch:
                 with self.env.begin(write=True) as txn:
                     for sample in batch:
-                        txn.put(f"{self.idx:08d}".encode(), pickle.dumps(sample))
+                        real_idx = self.idx % self.max_size
+                        txn.put(f"{real_idx:08d}".encode(), pickle.dumps(sample))
                         self.idx += 1
+
+            if self.replay_buffer:
+                self.size = self.size + len(batch) if self.size < self.max_size else self.max_size
+                txn.put(b"__idx__", pickle.dumps(self.idx))
+                txn.put(b"__size__", pickle.dumps(self.size))
 
             if item is None:
                 break  # salida del hilo
@@ -41,21 +49,30 @@ class LMDBWriter:
     def open(self):
         self.closed = False
         self.env = lmdb.open(self.lmdb_path, map_size=self.map_size)
+        with self.env.begin() as txn:
+            raw = txn.get(b"__idx__")
+            if raw:
+                self.idx = pickle.loads(raw)
+            else:
+                self.idx = txn.stat()['entries']
+
+            raw_size = txn.get(b"__size__")
+            if raw_size:
+                self.size = pickle.loads(raw_size)
+            else:
+                self.size = 0
+
         self.queue = Queue(maxsize=self.queue_size)
         self.thread = Thread(target=self._writer_thread, daemon=True)
         self.thread.start()
 
     def clear_database(self):
-        """
-        Vacía toda la base de datos sin cerrar el environment.
-        Debe llamarse cuando no hay escritor activo.
-        """
-        # Esperar a que se vacíe la cola
         self.queue.join()
         with self.env.begin(write=True) as txn:
             default_db = self.env.open_db()
             txn.drop(db=default_db, delete=False)
-        self.idx = 0  # reiniciar índice
+        self.idx = 0
+        self.size = 0
 
     def close(self):
         if self.closed:

@@ -20,3 +20,4 @@ data/training_data/
 src/intrinsic_curiosity_based_driving/models
 src/intrinsic_curiosity_based_driving/lmdb_episode
 src/intrinsic_curiosity_based_driving/infos
+src/intrinsic_curiosity_based_driving/replay_buffer_lmdb/*
