@@ -25,7 +25,7 @@ class LMDBReplayBuffer:
 
 
 
-    def sample_seq(self, batch_size):
+    def sample(self, batch_size):
         obs_seqs, action_seqs, done_seqs, telemetry_seqs, reward_seqs, next_telemetries, next_observations = [], [], [], [], [], [], []
 
         for _ in range(batch_size):
