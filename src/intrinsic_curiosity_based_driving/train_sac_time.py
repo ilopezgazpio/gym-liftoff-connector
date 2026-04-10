@@ -1,5 +1,5 @@
 from gym_liftoff.envs.liftoff_env import Liftoff
-from gym_liftoff.envs.liftoff_wrappers import LiftoffWrapStability, LiftoffWrapContinuousAction, LiftoffWrapLogTime
+from gym_liftoff.envs.liftoff_wrappers import LiftoffWrapStability, LiftoffWrapContinuousAction, LiftoffWrapConstantTime
 
 from src.utils.datasets import LMDBIntrinsicCuriosityDataset
 from .ensemble import SmallEnsemble, StateEncoder, StateDecoder
@@ -48,7 +48,7 @@ max_time_per_episode = [
 env = Liftoff(max_episode_time = max_time_per_episode)
 env = LiftoffWrapContinuousAction(env)
 env = LiftoffWrapStability(env)
-env = LiftoffWrapLogTime(env)
+env = LiftoffWrapConstantTime(env)
 
 print("Observation space:", env.observation_space)
 print("Action space:", env.action_space)
