@@ -185,7 +185,7 @@ for episode in range(last_episode, NUM_EPISODES):
         obs_tensor_norm = normalize(obs_tensor)
         obs_tensor_norm = obs_tensor_norm.unsqueeze(0)
 
-        action, log_prob = actor.sample_action(obs_tensor_norm.to(device), previous_action)
+        action, log_prob = actor.sample(obs_tensor_norm.to(device), previous_action)
 
         next_obs, reward, terminated, truncated, info = env.step(action.squeeze(0).detach().cpu().numpy())
         done = terminated or truncated
