@@ -34,7 +34,7 @@ class LMDBWriter:
                         self.idx += 1
 
             if self.replay_buffer:
-                self.size = self.size + len(batch) if self.size < self.max_size else self.max_size
+                self.size = self.idx if self.idx < self.max_size else self.max_size
                 txn.put(b"__idx__", pickle.dumps(self.idx))
                 txn.put(b"__size__", pickle.dumps(self.size))
 

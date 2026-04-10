@@ -35,7 +35,7 @@ class LMDBReplayBuffer:
             telemetry_seq = deque(maxlen=self.seq_len)
             reward_seq = deque(maxlen=self.seq_len)
 
-            max_valid_idx = self.size if self.total_added < self.max_size else self.max_size
+            max_valid_idx = max_valid_idx = self.writer.idx if self.writer.idx < self.max_size else self.max_size
             idx = random.randint(0, max_valid_idx - 1)
 
             with self.writer.env.begin() as txn:

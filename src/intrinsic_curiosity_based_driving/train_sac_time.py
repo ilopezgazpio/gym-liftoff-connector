@@ -355,6 +355,8 @@ for episode in range(last_episode, NUM_EPISODES):
         }
         replay_buffer.add(replay_data)
 
+    replay_buffer.writer.close()
+
 
     torch.cuda.empty_cache()
     encoder = encoder.to(cpu)
@@ -365,6 +367,8 @@ for episode in range(last_episode, NUM_EPISODES):
     actor = actor.to(device)
     critic = critic.to(device)
     critic_target = critic_target.to(device)
+
+    replay_buffer.writer.open()
 
     for _ in range(50):
         critic_loss, actor_loss = update_sac(
@@ -435,4 +439,6 @@ for episode in range(last_episode, NUM_EPISODES):
         }
         torch.save(all_models, models_dir / f"sac_models_optimizers_time_{episode}.pth")
         save_last_episode(episode=episode)
+
+
 
