@@ -4,7 +4,7 @@ from queue import Queue
 from threading import Thread
 
 class LMDBWriter:
-    def __init__(self, lmdb_path, max_size = 50000, batch_size=32, queue_size=500, map_size=16*1024**3, replay_buffer = False):
+    def __init__(self, lmdb_path, max_size = 50000, batch_size=32, queue_size=500, map_size=16*1024**3, replay_buffer = False, pickle_save = True):
         self.lmdb_path = lmdb_path
         self.queue_size = queue_size
         self.max_size = max_size
@@ -13,6 +13,7 @@ class LMDBWriter:
         self.idx = 0
         self.closed = True
         self.replay_buffer = replay_buffer
+        self.pickle_save = pickle_save
         #self.open()
 
     def _writer_thread(self):
@@ -30,7 +31,11 @@ class LMDBWriter:
                 with self.env.begin(write=True) as txn:
                     for sample in batch:
                         real_idx = self.idx % self.max_size
-                        txn.put(f"{real_idx:08d}".encode(), pickle.dumps(sample))
+                        if self.pickle_save:
+                            pack = pickle.dumps(sample)
+                        else:
+                            pack = sample.tobytes()
+                        txn.put(f"{real_idx:08d}".encode(), pack)
                         self.idx += 1
 
             if self.replay_buffer:

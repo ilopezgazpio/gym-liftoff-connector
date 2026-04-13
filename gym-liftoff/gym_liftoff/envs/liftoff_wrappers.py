@@ -18,7 +18,7 @@ class LiftoffWrapStability(gym.Wrapper):
         self.past_actions = None
         return self.env.reset(seed, options)
     def step(self, action):
-        obs, reward, done, info = self.env.step(action)
+        obs, reward, terminated, truncated, info = self.env.step(action)
 
         if self.past_actions is None:
             self.past_actions = np.zeros_like(action)
@@ -29,7 +29,7 @@ class LiftoffWrapStability(gym.Wrapper):
 
         reward = reward + self.ponderation * self.get_reward(delta_action)
 
-        return obs, reward, done, info
+        return obs, reward, terminated, truncated, info
 
     def get_reward(self, delta_action):
         return - np.sum(np.where(delta_action > self.max_deltas, (delta_action - self.max_deltas) ** 2, 0)) / 4
@@ -53,7 +53,7 @@ class LiftoffWrapContinuousAction(gym.ActionWrapper):
         return self.continuous2discrete(action)
 
     def continuous2discrete(self, action):
-        action = ((action + 1) / 2 * 2047)
+        action = (((action + 1) / 2) * 2047)
         return action.astype(np.uint16)
 
 class LiftoffWrapConstantTime(gym.RewardWrapper):
@@ -70,16 +70,47 @@ class LiftoffWrapLogTime(gym.Wrapper):
         self.steps = 0
         return self.env.reset(seed, options)
     def step(self, action):
-        obs, reward, done, info = self.env.step(action)
+        obs, reward, terminated, truncated, info = self.env.step(action)
         reward += math.log1p(self.steps)
         self.steps += 1
-        return obs, reward, done, info
+        return obs, reward, terminated, truncated, info
 
 class LiftoffWrapGyro(gym.Wrapper):
-    def __init__(self, env):
+    def __init__(self, env, ponderation = 1, max_gyro = 10):
         super(LiftoffWrapGyro, self).__init__(env)
+        self.ponderation = ponderation
+        self.max_gyro = max_gyro
+    def reset(self, seed = None, options = None):
+        obs, info = self.env.reset()
+        return obs, info
     def step(self, action):
-        obs, reward, done, info = self.env.step(action)
+        obs, reward, termianted, truncated, info = self.env.step(action)
+        reward += self.get_reward(info)
+        return obs, reward, termianted, truncated, info
+
+    def get_reward(self, info):
+        gyro = info["gyro"] * np.pi / 180
+        gyro_norm = np.linalg.norm(gyro) / self.max_gyro
+        return - self.ponderation*(gyro_norm**2)
+
+class LiftoffWrapAttitude(gym.Wrapper):
+    def __init__(self, env, ponderation = 1.0):
+        super(LiftoffWrapAttitude, self).__init__(env)
+        self.ponderation = ponderation
+    def step(self, action):
+        obs, reward, termianted, truncated, info = self.env.step(action)
+        reward += self.get_reward(info)
+        return obs, reward, termianted, truncated, info
+    def get_reward(self, info):
+        rotation = info["rotation"]
+        up_y = rotation[1, 1]
+
+        reward_attitude = 0.0
+        if up_y < 0.3:
+            reward_attitude = -1.0
+
+        return self.ponderation*reward_attitude
+
 
 
 class LiftoffWrapObservation(gym.ObservationWrapper):

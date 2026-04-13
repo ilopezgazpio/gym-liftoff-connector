@@ -16,13 +16,13 @@ from torchvision import transforms
 import json
 import lmdb
 import gc
+import numpy as np
 
 current_dir = Path(__file__).resolve().parent
 lmdb_path = current_dir / "lmdb_episode"
 replay_buffer_path = current_dir / "replay_buffer_lmdb"
 info_path = current_dir / "infos"
 logs_path = current_dir / "training_sac_time_reward_logs.json"
-
 
 def save_last_episode(episode:int):
     with last_episode_saving_path.open("w") as f:
@@ -139,7 +139,7 @@ cpu = torch.device("cpu")
 # =================
 
 writer = LMDBWriter(lmdb_path=str(lmdb_path))
-replay_buffer = LMDBReplayBuffer(path = str(replay_buffer_path), )
+replay_buffer = LMDBReplayBuffer(path = str(replay_buffer_path), obs_shape= env.observation_space.shape, act_size= ACTION_DIM, tel_size=15)
 
 # =================
 # Image Normalization
@@ -174,7 +174,8 @@ for episode in range(last_episode, NUM_EPISODES):
     writer.open()
     writer.clear_database()
     # reset del env
-    obs, _ = env.reset()
+    obs, info = env.reset()
+    infos.append(info)
     done = False
 
     previous_action = torch.zeros((1, ACTION_DIM), dtype = torch.float32).to(device)
@@ -346,13 +347,19 @@ for episode in range(last_episode, NUM_EPISODES):
     total_reward_tensor = reward_list + LAMBDA*normalized_ir_episode.to(cpu)
 
     for i in range(len(obs_list) - 1):
-        replay_data = {
-            "obs": obs_list[i].detach().cpu(),
-            "action": act_list[i].detach().cpu(),
-            "reward": total_reward_tensor[i].detach().cpu(),
-            "done": done_list[i].detach().cpu(),
-            "telemetry": infos[i]
-        }
+        info = infos[i]
+        telemetry = np.concatenate([
+            info["velocity"]/20.0,
+            info["gyro"]/10.0,
+            info["rotation"].flatten()
+        ])
+        replay_data = np.concatenate([
+            obs_list[i].detach().cpu().numpy().reshape(-1),
+            act_list[i].detach().cpu().numpy().reshape(-1),
+            telemetry,
+            np.array([total_reward_tensor[i].item(), done_list[i]].item(), dtype=np.float32),
+        ]).astype(np.float32)
+
         replay_buffer.add(replay_data)
 
     replay_buffer.writer.close()

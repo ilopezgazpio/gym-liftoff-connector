@@ -68,7 +68,6 @@ class IntrinsicCuriosityDataset(Dataset):
         self.actions = actions
         self.rewards = rewards
 
-
     def __len__(self):
         return len(self.rewards)
 
