@@ -2,7 +2,6 @@ import gymnasium as gym
 import time
 import numpy as np
 import cv2
-from gym_liftoff.envs.rewards import *
 from pathlib import Path
 import json
 import math
@@ -16,7 +15,7 @@ class LiftoffWrapStability(gym.Wrapper):
         self.max_deltas = self.read_data()
     def reset(self, seed = None, options = None):
         self.past_actions = None
-        return self.env.reset(seed, options)
+        return self.env.reset(seed = seed, options = options)
     def step(self, action):
         obs, reward, terminated, truncated, info = self.env.step(action)
 
@@ -68,7 +67,7 @@ class LiftoffWrapLogTime(gym.Wrapper):
         self.steps = 0
     def reset(self, seed = None, options = None):
         self.steps = 0
-        return self.env.reset(seed, options)
+        return self.env.reset(seed = seed, options = options)
     def step(self, action):
         obs, reward, terminated, truncated, info = self.env.step(action)
         reward += math.log1p(self.steps)

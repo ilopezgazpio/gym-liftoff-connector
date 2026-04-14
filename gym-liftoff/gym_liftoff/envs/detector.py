@@ -49,5 +49,5 @@ class CrashDetector:
         self.last_pos = pos
         self.last_timestamp = timestamp
 
-        return self.drone_reset, info
+        return self.drone_reset
 

@@ -140,6 +140,7 @@ cpu = torch.device("cpu")
 
 writer = LMDBWriter(lmdb_path=str(lmdb_path))
 replay_buffer = LMDBReplayBuffer(path = str(replay_buffer_path), obs_shape= env.observation_space.shape, act_size= ACTION_DIM, tel_size=15)
+replay_buffer.writer.clear_database()
 
 # =================
 # Image Normalization
@@ -177,7 +178,7 @@ for episode in range(last_episode, NUM_EPISODES):
     obs, info = env.reset()
     infos.append(info)
     done = False
-
+    print(info)
     previous_action = torch.zeros((1, ACTION_DIM), dtype = torch.float32).to(device)
     step = 0
     torch.cuda.empty_cache()
@@ -189,8 +190,9 @@ for episode in range(last_episode, NUM_EPISODES):
         action, log_prob = actor.sample(obs_tensor_norm.to(device), previous_action)
 
         next_obs, reward, terminated, truncated, info = env.step(action.squeeze(0).detach().cpu().numpy())
+        print(f"{terminated, truncated}")
         done = terminated or truncated
-
+        #print(info)
         t = step
         data_step = {
             "img": obs_tensor.squeeze(0).to(cpu),
@@ -345,6 +347,8 @@ for episode in range(last_episode, NUM_EPISODES):
     print(f"Intrinsic reward mean: {normalized_ir_episode.mean().item():.4f}, std: {normalized_ir_episode.std().item():.4f}")
 
     total_reward_tensor = reward_list + LAMBDA*normalized_ir_episode.to(cpu)
+    total_reward_tensor = total_reward_tensor.detach().reshape(-1)
+    done_list = done_list.reshape(-1)
 
     for i in range(len(obs_list) - 1):
         info = infos[i]
@@ -357,7 +361,7 @@ for episode in range(last_episode, NUM_EPISODES):
             obs_list[i].detach().cpu().numpy().reshape(-1),
             act_list[i].detach().cpu().numpy().reshape(-1),
             telemetry,
-            np.array([total_reward_tensor[i].item(), done_list[i]].item(), dtype=np.float32),
+            np.array([total_reward_tensor[i], done_list[i]], dtype=np.float32),
         ]).astype(np.float32)
 
         replay_buffer.add(replay_data)
