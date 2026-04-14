@@ -178,7 +178,6 @@ for episode in range(last_episode, NUM_EPISODES):
     obs, info = env.reset()
     infos.append(info)
     done = False
-    print(info)
     previous_action = torch.zeros((1, ACTION_DIM), dtype = torch.float32).to(device)
     step = 0
     torch.cuda.empty_cache()
@@ -190,9 +189,7 @@ for episode in range(last_episode, NUM_EPISODES):
         action, log_prob = actor.sample(obs_tensor_norm.to(device), previous_action)
 
         next_obs, reward, terminated, truncated, info = env.step(action.squeeze(0).detach().cpu().numpy())
-        print(f"{terminated, truncated}")
         done = terminated or truncated
-        #print(info)
         t = step
         data_step = {
             "img": obs_tensor.squeeze(0).to(cpu),
