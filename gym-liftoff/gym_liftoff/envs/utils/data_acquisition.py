@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from gym_liftoff.envs.liftoff_env import Liftoff
 
-env = Liftoff()
+env = Liftoff(max_episode_time = [1, 0, 0, 0])
 
 # =========================
 # CONFIG
@@ -30,9 +30,9 @@ def log(step, phase, action, info):
         "vy": info["velocity"][1],
         "vz": info["velocity"][2],
 
-        "wx": info["angular_velocity"][0],
-        "wy": info["angular_velocity"][1],
-        "wz": info["angular_velocity"][2],
+        "wx": info["gyro"][0],
+        "wy": info["gyro"][1],
+        "wz": info["gyro"][2],
 
         "m1": info["motorrpm"][0],
         "m2": info["motorrpm"][1],
@@ -57,11 +57,11 @@ step = 0
 # =========================================================
 print("Phase 1: thrust identification")
 
-for throttle in range(800, 1600, 100):
+for throttle in range(1200, 2000, 100):
 
     action = [throttle, 1024, 1024, 1024]
 
-    for _ in range(20):  # estabilización por nivel
+    for _ in range(50):  # estabilización por nivel
 
         _, _, _, _, info = env.step(action)
         log(step, "thrust", action, info)
