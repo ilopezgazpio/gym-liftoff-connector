@@ -65,7 +65,7 @@ class Liftoff(gym.Env):
         print("Actual Size of the socket: ", self.sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF))
         self.crash_detector = CrashDetector()
 
-        self.telemetry_path = "~/.config/unity3d/LuGus Studios/Liftoff/TelemetryConfiguration.json"
+        self.telemetry_path = "~/.config/unity3d/LuGus\ Studios/Liftoff/TelemetryConfiguration.json"
         self.telemetry_len_path = "./delta_data/telemetry_len_data.json"
         self.telemetry_len, self.telemetry_points, self.telemetry_points_len = self.get_telemetry_len()
 

@@ -6,8 +6,8 @@ from gym_liftoff.main import VideoSampler
 import socket
 import struct
 import numpy as np
-import zarr
-from numcodecs import Blosc
+#import zarr
+#from numcodecs import Blosc
 from queue import Queue
 from .EpisodeWriterThread import EpisodeWriterThread
 
@@ -16,12 +16,12 @@ class RecordingTool:
         self.sock = init_udp_socket()
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 256)
         self.reading_size = int(self.sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF))
-
+        self.sc_w = self.sc_h = 256
         self.crash_detector = CrashDetector()
         self.resetting = False
         self.video_sampler = VideoSampler.VideoSampler(self.sc_w, self.sc_h)
         self.zarr_path = zarr_path
-        self.root = zarr.open(self.zarr_path, mode="a")
+        #self.root = zarr.open(self.zarr_path, mode="a")
 
     def get_info(self):
         return self.read_telemetry()

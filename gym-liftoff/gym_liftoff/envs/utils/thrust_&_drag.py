@@ -4,7 +4,7 @@ import pandas as pd
 # =========================
 # CONFIG
 # =========================
-MASS = 0.8      # ajusta a tu dron
+MASS = 0.675    # ajusta a tu dron
 GRAVITY = 9.81
 
 # =========================
