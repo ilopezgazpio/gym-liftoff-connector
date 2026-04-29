@@ -18,25 +18,17 @@ class LMDBWriter:
 
     def _writer_thread(self):
         while True:
-            batch = []
-            while len(batch) < self.batch_size:
-                item = self.queue.get()
+            while len(self.batch) < self.batch_size:
+                item, idx = self.queue.get()
                 if item is None:
                     self.queue.task_done()
                     break
-                batch.append(item)
+                self.batch.append(item)
+                self.ids.append(idx)
                 self.queue.task_done()
 
-            if batch:
-                with self.env.begin(write=True) as txn:
-                    for sample in batch:
-                        real_idx = self.idx % self.max_size
-                        if self.pickle_save:
-                            pack = pickle.dumps(sample)
-                        else:
-                            pack = sample.tobytes()
-                        txn.put(f"{real_idx:08d}".encode(), pack)
-                        self.idx += 1
+            if self.batch:
+                self.flush()
 
             if self.replay_buffer:
                 with self.env.begin(write=True) as txn:
@@ -47,10 +39,10 @@ class LMDBWriter:
             if item is None:
                 break  # salida del hilo
 
-    def put(self, sample):
+    def put(self, sample, idx = None):
         if self.closed:
             raise RuntimeError("Writer already closed")
-        self.queue.put(sample)
+        self.queue.put((sample, idx))
 
     def open(self):
         self.closed = False
@@ -67,7 +59,8 @@ class LMDBWriter:
                 self.size = pickle.loads(raw_size)
             else:
                 self.size = 0
-
+        self.batch = []
+        self.ids = []
         self.queue = Queue(maxsize=self.queue_size)
         self.thread = Thread(target=self._writer_thread, daemon=True)
         self.thread.start()
@@ -83,7 +76,36 @@ class LMDBWriter:
     def close(self):
         if self.closed:
             return
-        self.queue.put(None)  # señal de fin
+        self.queue.put((None, None))  # señal de fin
         self.thread.join()
         self.env.close()
         self.closed = True
+
+    def flush(self):
+        with self.env.begin(write=True) as txn:
+            for i, sample in zip(self.ids, self.batch):
+                if i == None:
+                    real_idx = self.idx % self.max_size
+                    self.idx += 1
+                else:
+                    real_idx = i
+
+                if self.pickle_save:
+                    pack = pickle.dumps(sample)
+                else:
+                    pack = sample.tobytes()
+                txn.put(f"{real_idx:08d}".encode(), pack)
+
+        self.batch = []
+        self.ids = []
+
+    def get_item(self, idx):
+        with self.env.begin() as txn:
+            data = txn.get(idx)
+        return data
+
+
+
+
+
+

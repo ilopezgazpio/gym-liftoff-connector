@@ -1,0 +1,35 @@
+{
+  "Timestamp": {
+    "bytes": 4,
+    "size": 1
+  },
+  "Position": {
+    "bytes": 12,
+    "size": 3
+  },
+  "Attitude": {
+    "bytes": 16,
+    "size": 4
+  },
+  "Velocity": {
+    "bytes": 12,
+    "size": 3
+  },
+  "Gyro": {
+    "bytes": 12,
+    "size": 3
+  },
+  "Input": {
+    "bytes": 16,
+    "size": 4
+  },
+  "Battery": {
+    "bytes": 8,
+    "size": 2
+  },
+  "MotorRPM": {
+    "bytes": 17,
+    "size": 4,
+    "note": "1 byte (num_motors) + size floats"
+  }
+}

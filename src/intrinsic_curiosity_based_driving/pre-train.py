@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.optim as optim
 
-from ensemble import StateAutoEncoder
+from utils.ensemble import StateAutoEncoder
 from src.utils.datasets import VideoFramesDataset
 
 

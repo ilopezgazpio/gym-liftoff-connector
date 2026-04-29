@@ -2,8 +2,8 @@ from gym_liftoff.envs.liftoff_env import Liftoff
 from gym_liftoff.envs.liftoff_wrappers import LiftoffWrapStability, LiftoffWrapContinuousAction, LiftoffWrapConstantTime
 
 from src.utils.datasets import LMDBIntrinsicCuriosityDataset
-from .ensemble import SmallEnsemble, StateEncoder, StateDecoder
-from .sac import ActorSAC, CriticSAC_LSTM, update_sac
+from utils.ensemble import SmallEnsemble, StateEncoder, StateDecoder
+from utils.sac import ActorSAC, CriticSAC_LSTM, update_sac
 from src.utils.lmdb_utils import LMDBWriter
 from src.utils.datasets import PPODataset
 from src.utils.ReplayBuffer import LMDBReplayBuffer

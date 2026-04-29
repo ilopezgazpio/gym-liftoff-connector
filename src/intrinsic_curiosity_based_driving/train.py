@@ -1,8 +1,8 @@
 from gym_liftoff.envs.liftoff_env import Liftoff
 
 from src.utils.datasets import LMDBIntrinsicCuriosityDataset
-from .ensemble import SmallEnsemble, StateEncoder, StateDecoder
-from .policy import Actor, Critic, compute_gae
+from utils.ensemble import SmallEnsemble, StateEncoder, StateDecoder
+from utils.policy import Actor, Critic, compute_gae
 from utils.lmdb_utils import LMDBWriter
 from src.utils.datasets import PPODataset
 from torch.utils.data import DataLoader

@@ -11,6 +11,7 @@ from gym_liftoff.envs.telemetry import init_udp_socket
 from gym_liftoff.envs.detector import CrashDetector
 import socket
 import struct
+import json
 
 import logging
 logger = logging.getLogger(__name__)
@@ -63,6 +64,10 @@ class Liftoff(gym.Env):
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 256)
         print("Actual Size of the socket: ", self.sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF))
         self.crash_detector = CrashDetector()
+
+        self.telemetry_path = "~/.config/unity3d/LuGus Studios/Liftoff/TelemetryConfiguration.json"
+        self.telemetry_len_path = "./delta_data/telemetry_len_data.json"
+        self.telemetry_len, self.telemetry_points, self.telemetry_points_len = self.get_telemetry_len()
 
         logger.info("Initializing environment.....")
 
@@ -121,9 +126,9 @@ class Liftoff(gym.Env):
         self.past_action = None
         self.penalty_threshold = 0.3
 
-        logger.info("Enviroment ready. Open Liftoff and enter a flight. Press ENTER here to start.")
+        print("Enviroment ready. Press ENTER here to start.")
         input()
-        logger.info("Starting in 5 seconds... Focus the Liftoff window now!")
+        print("Starting in 5 seconds... Focus the Liftoff window now!")
         time.sleep(5)
 
     def _get_info(self):
@@ -170,8 +175,14 @@ class Liftoff(gym.Env):
         terminated= self.__episode_terminated__(info)
         reward = self._get_reward(terminated)
         truncated = info["timestamp"] > self.max_episode_time
+
         if terminated or truncated:
             self._has_reset = False
+        if terminated:
+            info["crash_reason"] = self.crash_detector.crash_reason
+        if truncated:
+            info["crash_reason"] = None
+
         return observation, reward, terminated, truncated, info
 
 
@@ -263,12 +274,26 @@ class Liftoff(gym.Env):
             # no llegó nada en este ciclo
             return None
 
-        if len(latest) < 72:
+        if len(latest) < self.telemetry_len:
             # paquete demasiado corto
             return None
 
-        unpacked = struct.unpack('18f', latest[:72])
+        telemetry = {}
+        idx = 0
+        for point in self.telemetry_points:
+            point_data = self.telemetry_points_len[point]
+            bytes = point_data["bytes"]
+            if point == "MotorRPM":
+                idx +=1
+                bytes -=1
+            telemetry[point.lower()] = np.frombuffer(latest[idx:idx + bytes], dtype=np.float32)
+            idx += bytes
+        return telemetry
 
+
+
+        """
+        unpacked = struct.unpack('18f', latest[:self.telemetry_len])
         timestamp = unpacked[0]
         pos = np.array(unpacked[1:4])
         att = np.array(unpacked[4:8])
@@ -284,6 +309,8 @@ class Liftoff(gym.Env):
             'gyro': gyro,
             'input': inp
         }
+        """
+
 
     def quaternion_to_rotation_matrix(self, attitude):
         qx, qy, qz, qw = attitude
@@ -293,6 +320,23 @@ class Liftoff(gym.Env):
             [2 * (qx * qz - qy * qw), 2 * (qy * qz + qx * qw), 1 - 2 * (qx * qx + qy * qy)]
         ])
         return R
+
+    def get_telemetry_len(self):
+        telemetry_len = 0
+
+        with open(self.telemetry_path, "r", encoding="utf-8") as f:
+            data = json.load(f)["StreamFormat"]
+
+        with open(self.telemetry_len_path, "r", encoding="utf-8") as f:
+            data_len = json.load(f)
+
+        for point in data:
+            telemetry_len += data_len[point]["bytes"]
+
+        return telemetry_len, data, data_len
+
+        
+
 
 
 

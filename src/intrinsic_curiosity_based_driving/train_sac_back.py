@@ -1,11 +1,12 @@
 from gym_liftoff.envs.liftoff_env import Liftoff
-from gym_liftoff.envs.liftoff_wrappers import LiftoffWrapStability, LiftoffWrapContinuousAction, LiftoffWrapLogTime
+from gym_liftoff.envs.liftoff_wrappers import LiftoffWrapStability, LiftoffWrapContinuousAction, LiftoffWrapConstantTime
 
 from src.utils.datasets import LMDBIntrinsicCuriosityDataset
 from utils.ensemble import SmallEnsemble, StateEncoder, StateDecoder
-from utils.policy import Actor, Critic, compute_gae
-from utils.lmdb_utils import LMDBWriter
+from utils.sac import ActorSAC, CriticSAC_LSTM, update_sac
+from src.utils.lmdb_utils import LMDBWriter
 from src.utils.datasets import PPODataset
+from src.utils.ReplayBuffer import LMDBReplayBuffer
 from torch.utils.data import DataLoader
 from torch.optim import Adam
 from pathlib import Path
@@ -15,11 +16,13 @@ from torchvision import transforms
 import json
 import lmdb
 import gc
+import numpy as np
 
 current_dir = Path(__file__).resolve().parent
 lmdb_path = current_dir / "lmdb_episode"
+replay_buffer_path = current_dir / "replay_buffer_lmdb"
 info_path = current_dir / "infos"
-logs_path = current_dir / "training_time_reward_logs.json"
+logs_path = current_dir / "training_sac_time_reward_logs.json"
 
 def save_last_episode(episode:int):
     with last_episode_saving_path.open("w") as f:
@@ -27,12 +30,12 @@ def save_last_episode(episode:int):
 
 def read_last_episode():
     if not last_episode_saving_path.exists():
-        return -1
+        return 0
     with last_episode_saving_path.open("r") as f:
         return int(f.read())
 
 models_dir = current_dir / "models"
-last_episode_saving_path = models_dir / "last_episode_time.txt"
+last_episode_saving_path = models_dir / "sac_back_last_episode_time.txt"
 models_dir.mkdir(exist_ok=True, parents=True)
 
 max_time_per_episode = [
@@ -45,7 +48,7 @@ max_time_per_episode = [
 env = Liftoff(max_episode_time = max_time_per_episode)
 env = LiftoffWrapContinuousAction(env)
 env = LiftoffWrapStability(env)
-env = LiftoffWrapLogTime(env)
+env = LiftoffWrapConstantTime(env)
 
 print("Observation space:", env.observation_space)
 print("Action space:", env.action_space)
@@ -74,8 +77,10 @@ cpu = torch.device("cpu")
 
 encoder = StateEncoder(latent_dim=LATENT_DIM)
 decoder = StateDecoder(latent_dim=LATENT_DIM)
-actor = Actor(action_dim=ACTION_DIM)
-critic = Critic(action_dim=ACTION_DIM)
+actor = ActorSAC(action_dim=ACTION_DIM)
+critic = CriticSAC_LSTM(action_dim=ACTION_DIM)
+critic_target = CriticSAC_LSTM(action_dim=ACTION_DIM)
+critic_target.load_state_dict(critic.state_dict())
 ensemble = [SmallEnsemble(LATENT_DIM, ACTION_DIM) for _ in range(NUM_ENSEMBLE_MODELS)]
 
 checkpoint = None
@@ -84,12 +89,13 @@ last_episode = 0
 
 try:
     last_episode = read_last_episode()
-    checkpoint = torch.load(models_dir / f"models_optimizers_time_{last_episode}.pth")
+    checkpoint = torch.load(models_dir / f"sac_back_models_optimizers_time_{last_episode}.pth")
 
     encoder.load_state_dict(checkpoint["models"]["encoder"])
     decoder.load_state_dict(checkpoint["models"]["decoder"])
     actor.load_state_dict(checkpoint["models"]["actor"])
     critic.load_state_dict(checkpoint["models"]["critic"])
+    critic_target.load_state_dict(checkpoint["models"]["critic_target"])
     for model, state_dict in zip(ensemble, checkpoint["models"]["ensemble"]):
         model.load_state_dict(state_dict)
 except FileNotFoundError:
@@ -100,7 +106,7 @@ except FileNotFoundError:
 # Optimizers
 # =================
 
-learning_rate = 1e-3
+learning_rate = 1e-4
 encoder_opt = Adam(encoder.parameters(), lr = learning_rate)
 decoder_opt = Adam(decoder.parameters(), lr = learning_rate)
 actor_opt = Adam(actor.parameters(), lr = 1e-4)
@@ -120,6 +126,7 @@ if checkpoint:
     for opt, state in zip(ensemble_opt, checkpoint["optimizers"]["ensemble"]):
         opt.load_state_dict(state)
 
+
 # =================
 # Devices
 # =================
@@ -132,7 +139,8 @@ cpu = torch.device("cpu")
 # =================
 
 writer = LMDBWriter(lmdb_path=str(lmdb_path))
-
+replay_buffer = LMDBReplayBuffer(path = str(replay_buffer_path), obs_shape= env.observation_space.shape, act_size= ACTION_DIM, tel_size=15)
+replay_buffer.writer.clear_database()
 
 # =================
 # Image Normalization
@@ -167,32 +175,27 @@ for episode in range(last_episode, NUM_EPISODES):
     writer.open()
     writer.clear_database()
     # reset del env
-    obs, _ = env.reset()
+    obs, info = env.reset()
+    infos.append(info)
     done = False
-
     previous_action = torch.zeros((1, ACTION_DIM), dtype = torch.float32).to(device)
     step = 0
     torch.cuda.empty_cache()
     while not done:
-        # convertir obs a tensor
         obs_tensor = torch.from_numpy(obs).float() / 255.0
         obs_tensor_norm = normalize(obs_tensor)
         obs_tensor_norm = obs_tensor_norm.unsqueeze(0)
 
-        # acción del policy PPO
-        action, log_prob = actor.sample_action(obs_tensor_norm.to(device), previous_action)
+        action, log_prob = actor.sample(obs_tensor_norm.to(device), previous_action)
 
-        # ejecutar acción
         next_obs, reward, terminated, truncated, info = env.step(action.squeeze(0).detach().cpu().numpy())
         done = terminated or truncated
-
-        #print("Action:", action)
-        # almacenar info para entrenamiento posterior
         t = step
         data_step = {
             "img": obs_tensor.squeeze(0).to(cpu),
             "action": action.to(cpu),
             "reward": reward,
+            "info": info,
             "step": t
         }
 
@@ -207,11 +210,8 @@ for episode in range(last_episode, NUM_EPISODES):
 
         infos.append(info)
 
-
-        # actualizar obs
         obs = next_obs
         step += 1
-
 
     last_step = {"img": obs, "step": step}
     writer.put(last_step)
@@ -226,14 +226,12 @@ for episode in range(last_episode, NUM_EPISODES):
     print(f"Episode finished in {step} steps, total env reward: {sum(env_rewards):.3f}")
 
     env_rewards_tensor = torch.Tensor(env_rewards)
-    if env_rewards_tensor.numel() > 1:
-        env_rewards_norm = (env_rewards_tensor - env_rewards_tensor.mean()) / (env_rewards_tensor.std(unbiased=False) + 1e-8)
 
     intrinsic_curiosity_dataset = LMDBIntrinsicCuriosityDataset(lmdb_path=str(lmdb_path))
     intrinsic_curiosity_loader = DataLoader(intrinsic_curiosity_dataset, batch_size = BATCH_SIZE)
 
 
-    ppo_dataset = PPODataset(log_probs = log_probs, dones= dones, past_actions=prev_actions, rewards=env_rewards_norm)
+    ppo_dataset = PPODataset(log_probs = log_probs, dones= dones, past_actions=prev_actions, rewards=env_rewards_tensor)
     ppo_loader = DataLoader(ppo_dataset, batch_size = BATCH_SIZE)
 
     encoder = encoder.to(device)
@@ -241,12 +239,14 @@ for episode in range(last_episode, NUM_EPISODES):
     ensemble = [e.to(device) for e in ensemble]
     critic = critic.to(device)
 
-    final_rewards = torch.Tensor().to(device)
-    values = torch.Tensor().to(device)
+    final_rewards = []
+    for nsbl in ensemble:
+        for p in nsbl.parameters():
+            p.requires_grad = False
 
     for intrinsic_batch, ppo_batch in zip(intrinsic_curiosity_loader, ppo_loader):
-        obs, act, unnorm_reward, next_obs = [x.to(device) for x in intrinsic_batch]
-        _, _, prev_action, env_reward, _, _, _ = [x.to(device) for x in ppo_batch]
+        obs, act, reward, next_obs = [x.to(device) for x in intrinsic_batch]
+        _, done, prev_action, _, _, _, _ = [x.to(device) for x in ppo_batch]
 
 
         z = encoder(obs)
@@ -257,10 +257,59 @@ for episode in range(last_episode, NUM_EPISODES):
 
         z_detached = z.detach()
         # Ensemble models backprop
+        ensemble_losses = []
+        for nsbl in ensemble:
+            pred_next_z = nsbl(z_detached, act.detach())
+            loss = F.mse_loss(pred_next_z, z_next.detach())
+            ensemble_losses.append(loss)
+
+        ensemble_loss = torch.stack(ensemble_losses).mean()
+        print(f"Reconstruction loss: {reconstruction_loss.item():.4f}, Ensemble loss: {ensemble_loss.item():.4f}")
+
+
+        # Encoder Backprop
+        encoder_opt.zero_grad()
+        #(total_encoder_loss := reconstruction_loss + torch.clamp(ensemble_loss, 0, 10)).backward()
+        (total_encoder_loss := reconstruction_loss + BETA*torch.clamp(ensemble_loss, 0, 5)).backward()
+        encoder_opt.step()
+
+        encoder_losses_list.append(float(total_encoder_loss.item()))
+        ensemble_losses_list.append(float(ensemble_loss.item()))
+
+
+
+        reconstruct_obs2 = decoder(encoder(obs).detach())
+        decoder_loss = F.mse_loss(reconstruct_obs2, obs)
+        # Decoder Backprop
+        decoder_opt.zero_grad()
+        decoder_loss.backward()
+        decoder_opt.step()
+
+        decoder_losses_list.append(decoder_loss.item())
+
+        torch.cuda.empty_cache()
+
+    for nsbl in ensemble:
+        for p in nsbl.parameters():
+            p.requires_grad = True
+
+    ir_episode = torch.tensor([], dtype = torch.float32).to(device)
+
+    obs_list = torch.tensor([], dtype = torch.float32)
+    act_list = torch.tensor([], dtype = torch.float32)
+    done_list = torch.tensor([], dtype = torch.float32)
+    reward_list = torch.tensor([], dtype = torch.float32)
+    for intrinsic_batch, ppo_batch in zip(intrinsic_curiosity_loader, ppo_loader):
+        obs, act, reward, next_obs = [x.to(device) for x in intrinsic_batch]
+        _, done, prev_action, _, _, _, _ = [x.to(device) for x in ppo_batch]
+
+        with torch.no_grad():
+            z = encoder(obs)
+            z_next = encoder(next_obs)
 
         for nsbl, optimizer in zip(ensemble, ensemble_opt):
 
-            pred = nsbl(z_detached, act.detach())
+            pred = nsbl(z, act.detach())
             mask = torch.bernoulli(0.5 * torch.ones(pred.size(0), device=pred.device)).bool()
             # print(mask.sum())
             if mask.sum() == 0:
@@ -276,88 +325,46 @@ for episode in range(last_episode, NUM_EPISODES):
         ensemble_preds = []
         for nsbl in ensemble:
             pred_next_z = nsbl(z, act)
-            loss = F.mse_loss(pred_next_z, z_next.detach())
-            ensemble_losses.append(loss)
             ensemble_preds.append(pred_next_z)
 
+        ensemble_preds_stack = torch.stack(ensemble_preds)
+        ir = torch.var(ensemble_preds_stack, dim=0, unbiased=False).mean(dim=1)
+        ir = torch.clamp(ir, 0, 5)
+        ir_episode = torch.cat([ir_episode, ir])
 
-        ensemble_loss = torch.stack(ensemble_losses).mean()
-        #print(ensemble_preds)
-        print(f"Reconstruction loss: {reconstruction_loss.item():.4f}, Ensemble loss: {ensemble_loss.item():.4f}")
+        obs_list = torch.cat([obs_list, obs.to(cpu)])
+        act_list = torch.cat([act_list, act.to(cpu)])
+        reward_list = torch.cat([reward_list, reward.to(cpu)])
+        done_list = torch.cat([done_list, done.to(cpu)])
 
-        for nsbl in ensemble:
-            for p in nsbl.parameters():
-                p.requires_grad = False
+    episode_mean = ir_episode.mean()
+    episode_std = ir_episode.std(unbiased=False)
+    normalized_ir_episode = (ir_episode - episode_mean) / (episode_std + 1e-8)
 
+    print(f"Intrinsic reward mean: {normalized_ir_episode.mean().item():.4f}, std: {normalized_ir_episode.std().item():.4f}")
 
-        # Encoder Backprop
-        encoder_opt.zero_grad()
-        #(total_encoder_loss := reconstruction_loss + torch.clamp(ensemble_loss, 0, 10)).backward()
-        (total_encoder_loss := reconstruction_loss + BETA*torch.clamp(ensemble_loss, 0, 5)).backward()
-        encoder_opt.step()
+    total_reward_tensor = reward_list + LAMBDA*normalized_ir_episode.to(cpu)
+    total_reward_tensor = total_reward_tensor.detach().reshape(-1)
+    done_list = done_list.reshape(-1)
 
-        encoder_losses_list.append(float(total_encoder_loss.item()))
-        ensemble_losses_list.append(float(ensemble_loss.item()))
-        for nsbl in ensemble:
-            for p in nsbl.parameters():
-                p.requires_grad = True
+    for i in range(len(obs_list) - 1):
+        info = infos[i]
+        telemetry = np.concatenate([
+            info["velocity"]/20.0,
+            info["gyro"]/10.0,
+            info["rotation"].flatten()
+        ])
+        replay_data = np.concatenate([
+            obs_list[i].detach().cpu().numpy().reshape(-1),
+            act_list[i].detach().cpu().numpy().reshape(-1),
+            telemetry,
+            np.array([total_reward_tensor[i], done_list[i]], dtype=np.float32),
+        ]).astype(np.float32)
 
+        replay_buffer.add(replay_data)
 
-        reconstruct_obs2 = decoder(encoder(obs).detach())
-        decoder_loss = F.mse_loss(reconstruct_obs2, obs)
-        # Decoder Backprop
-        decoder_opt.zero_grad()
-        decoder_loss.backward()
-        decoder_opt.step()
+    replay_buffer.writer.close()
 
-        decoder_losses_list.append(decoder_loss.item())
-
-        """
-        ir = torch.mean(torch.var(ensemble_preds, dim=1, unbiased=False), dim=1)
-        ir = (ir - ir.mean()) / (ir.std() + 1e-8)
-        ir = ir.unsqueeze(-1) # [batch, 1]
-        """
-
-        ensemble_preds_ir = torch.stack(ensemble_preds)
-
-        #print(ensemble_preds_ir.shape)
-
-        ir = torch.var(ensemble_preds_ir, dim=0, unbiased=False)
-        ir = ir.mean(dim=1)  # [batch]
-
-        print(f"Intrinsic reward mean: {ir.mean().item():.4f}, std: {ir.std().item():.4f}")
-        #print(f"Intrinsic Reward: ", ir)
-        #print("Enviroment Reward ", env_reward)
-        # TODO: Ponderar si es necesario
-        batch_mean = ir.mean()
-        batch_std = ir.std(unbiased=False)
-
-
-        # Normalizar
-        if ir.numel() > 1 and running_std_ir > 1e-8:
-            running_mean_ir = gamma_ir * running_mean_ir + (1 - gamma_ir) * batch_mean.item()
-            running_std_ir = gamma_ir * running_std_ir + (1 - gamma_ir) * batch_std.item()
-            normalized_ir = (ir - running_mean_ir) / running_std_ir
-        else:
-            # Evitar NaN cuando batch es 1 o std muy pequeño
-            normalized_ir = (ir - running_mean_ir) / running_std_ir
-
-        total_reward = env_reward + LAMBDA*normalized_ir
-
-        reward = total_reward
-        value = critic(obs, prev_action)
-
-        final_rewards = torch.cat([final_rewards, reward])
-        values = torch.cat([values, value.detach()])
-
-        total_rewards_list.extend(total_reward.detach().cpu().numpy())
-        intrinsic_rewards_list.extend(normalized_ir.detach().cpu().numpy())
-        env_rewards_list.extend(unnorm_reward.detach().cpu().numpy())
-
-        torch.cuda.empty_cache()
-    with torch.no_grad():
-        last_value = critic(obs[-1].unsqueeze(0), act[-1].unsqueeze(0)).detach()
-    advantages, returns = compute_gae(final_rewards.detach(), values.detach(), dones)
 
     torch.cuda.empty_cache()
     encoder = encoder.to(cpu)
@@ -365,47 +372,21 @@ for episode in range(last_episode, NUM_EPISODES):
     ensemble = [e.to(cpu) for e in ensemble]
     torch.cuda.empty_cache()
 
-    clip_eps = 0.2
-    ppo_dataset = PPODataset(log_probs, dones, prev_actions, rewards=final_rewards, advantages=advantages, values=values, returns=returns)
-    ppo_loader = DataLoader(ppo_dataset, batch_size = PPO_BATCH)
+    actor = actor.to(device)
+    critic = critic.to(device)
+    critic_target = critic_target.to(device)
 
-    intrinsic_curiosity_loader = DataLoader(intrinsic_curiosity_dataset, batch_size = PPO_BATCH)
-    for _ in range(PPO_EPOCHS):
-        for intrinsic_batch, ppo_batch in zip(intrinsic_curiosity_loader, ppo_loader):
-            b_obs, b_acts, _, _ = [x.to(device) for x in intrinsic_batch]
-            old_log_probs, _, b_past_acts, _, b_adv, b_val, b_return = [x.to(device) for x in ppo_batch]
+    replay_buffer.writer.open()
 
-            b_obs_norm = normalize(b_obs)
-            b_acts = b_acts.squeeze(1).requires_grad_(False)
-            b_obs_norm = b_obs_norm.requires_grad_(False)
-            b_past_acts = b_past_acts.squeeze(1)
-            b_new_probs = actor.get_log_probs(b_obs_norm, b_past_acts, b_acts)
-
-            action_penalty = (b_acts ** 2).mean()
-            ratio = torch.exp(b_new_probs - old_log_probs.detach())
-            #ratio = torch.clamp(ratio, 0, 10)
-            surr1 = ratio*b_adv
-            surr2 = torch.clamp(ratio, 1.0 - clip_eps, 1.0 + clip_eps) * b_adv
-
-            #print("new_log_probs:", b_new_probs.min().item(), b_new_probs.max().item())
-            #print("old_log_probs:", old_log_probs.min().item(), old_log_probs.max().item())
-            #print("diff:", (b_new_probs - old_log_probs).min().item(), (b_new_probs - old_log_probs).max().item())
-            actor_loss = -torch.mean(torch.min(surr1, surr2))
-
-            actor_opt.zero_grad()
-            actor_loss.backward()
-            torch.nn.utils.clip_grad_norm_(actor.parameters(), max_norm=0.5)
-            actor_opt.step()
-            actor_losses_list.append(float(actor_loss.item()))
-
-            value_pred = critic(b_obs_norm, b_past_acts.detach())
-            critic_loss = F.mse_loss(value_pred, b_return)
-            critic_opt.zero_grad()
-            critic_loss.backward()
-            torch.nn.utils.clip_grad_norm_(critic.parameters(), max_norm=0.5)
-            critic_opt.step()
-            critic_losses_list.append(float(critic_loss.item()))
-            print(f"PPO epoch actor_loss: {actor_loss.item():.4f}, critic_loss: {critic_loss.item():.4f}")
+    for _ in range(50):
+        critic_loss, actor_loss = update_sac(
+            actor, critic, critic_target,
+            replay_buffer, actor_opt, critic_opt,
+            batch_size=BATCH_SIZE, device=device, normalize=normalize
+        )
+        print(f"SAC update -> critic_loss: {critic_loss:.4f}, actor_loss: {actor_loss:.4f}")
+        critic_losses_list.append(critic_loss)
+        actor_losses_list.append(actor_loss)
 
     episode_log = {
         "episode": episode,
@@ -443,7 +424,6 @@ for episode in range(last_episode, NUM_EPISODES):
     del intrinsic_curiosity_dataset
     del final_rewards
     del dones
-    del values
     gc.collect()
     torch.cuda.empty_cache()
 
@@ -454,6 +434,7 @@ for episode in range(last_episode, NUM_EPISODES):
                 "decoder": decoder.state_dict(),
                 "actor": actor.state_dict(),
                 "critic": critic.state_dict(),
+                "critic_target": critic_target.state_dict(),
                 "ensemble": [m.state_dict() for m in ensemble]
             },
             "optimizers": {
@@ -464,6 +445,8 @@ for episode in range(last_episode, NUM_EPISODES):
                 "ensemble": [opt.state_dict() for opt in ensemble_opt]
             }
         }
-        torch.save(all_models, models_dir / f"models_optimizers_time_{episode}.pth")
+        torch.save(all_models, models_dir / f"sac_models_optimizers_time_{episode}.pth")
         save_last_episode(episode=episode)
+
+
 

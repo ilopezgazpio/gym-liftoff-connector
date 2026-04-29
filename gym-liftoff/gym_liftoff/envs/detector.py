@@ -10,12 +10,14 @@ class CrashDetector:
         self.last_timestamp = 0.0
         self.crash_counter = 0
         self.drone_reset = False
+        self.crash_reason = None
 
     def reset(self):
         self.last_pos = None
         self.last_timestamp = 0.0
         self.crash_counter = 0
         self.drone_reset = False
+        self.crash_reason = None
 
     def is_crashed(self, info):
         pos = info["position"]
@@ -42,9 +44,11 @@ class CrashDetector:
 
         if self.last_timestamp - 0.01 > timestamp:
             self.drone_reset = True
+            self.crash_reason = 't'
 
         if self.crash_counter >= self.crash_threshold_counter:
             self.drone_reset = True
+            self.crash_reason = 's'
 
         self.last_pos = pos
         self.last_timestamp = timestamp

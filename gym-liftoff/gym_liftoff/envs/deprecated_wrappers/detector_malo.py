@@ -2,7 +2,7 @@ import numpy as np
 
 
 class CrashDetector:
-    def __init__(self, vel_min=1e-2, input_min=1e-2, pos_min=0.01, crash_threshold_counter=10, alpha=1.0, beta=1.0,
+    def __init__(self, vel_min=1e-2, input_min=1e-2, pos_min=0.01, crash_threshold_counter=3, alpha=1.0, beta=1.0,
                  gamma=0.1, phys_threshold=0.5):
 
         self.vel_min = vel_min
