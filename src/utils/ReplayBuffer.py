@@ -38,7 +38,6 @@ class LMDBReplayBuffer:
         next_batch_len = []
 
         max_valid_idx = self.writer.idx if self.writer.idx < self.max_size else self.max_size
-
         with self.writer.env.begin() as txn:
             for i in range(batch_size):
                 idx = random.randint(0, max_valid_idx - 1)  # -2 para asegurar next
@@ -48,22 +47,26 @@ class LMDBReplayBuffer:
 
                 for t in range(self.seq_len - 1):
                     real_idx = (idx - t - 1) % max_valid_idx
+
                     raw = txn.get(f"{real_idx:08}".encode())
 
-                    obs, act, rew, done, tel = self.decode(raw)
+                    _, act, _, done, tel = self.decode(raw)
 
                     if done > 0:
                         break
+                    #print("done: ",done)
 
                     obs_batch[i, -t-2] = obs
                     act_batch[i, -t-2] = act
                     rew_batch[i, -t-2] = rew
                     done_batch[i, -t-2] = done
+
                     tel_batch[i, -t-2] = tel
 
 
                 raw = txn.get(f"{idx:08}".encode())
                 obs, act, rew, done, tel = self.decode(raw)
+
 
                 obs_batch[i, self.seq_len-1] = obs
                 act_batch[i, self.seq_len-1] = act
@@ -101,6 +104,7 @@ class LMDBReplayBuffer:
                         future_len += 1
 
                 next_batch_len.append(future_len)
+
 
         return (
             (torch.from_numpy(obs_batch), torch.from_numpy(act_batch), torch.from_numpy(rew_batch), torch.from_numpy(done_batch), torch.from_numpy(tel_batch)),
