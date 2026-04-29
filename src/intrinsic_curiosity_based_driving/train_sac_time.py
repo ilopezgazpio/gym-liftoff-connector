@@ -53,7 +53,7 @@ env = LiftoffWrapConstantTime(env)
 print("Observation space:", env.observation_space)
 print("Action space:", env.action_space)
 
-NUM_EPISODES = 10000
+NUM_EPISODES = 20000
 NUM_ENSEMBLE_MODELS = 8
 LATENT_DIM = 64
 ACTION_DIM = 4
@@ -140,7 +140,7 @@ cpu = torch.device("cpu")
 
 writer = LMDBWriter(lmdb_path=str(lmdb_path))
 replay_buffer = LMDBReplayBuffer(path = str(replay_buffer_path), obs_shape= env.observation_space.shape, act_size= ACTION_DIM, tel_size=15)
-replay_buffer.writer.clear_database()
+#replay_buffer.writer.clear_database()
 
 # =================
 # Image Normalization
@@ -346,8 +346,8 @@ for episode in range(last_episode, NUM_EPISODES):
     total_reward_tensor = reward_list + LAMBDA*normalized_ir_episode.to(cpu)
     total_reward_tensor = total_reward_tensor.detach().reshape(-1)
     done_list = done_list.reshape(-1)
-
-    for i in range(len(obs_list) - 1):
+    normalized_ir_episode = normalized_ir_episode.reshape(-1)
+    for i in range(len(obs_list)):
         info = infos[i]
         telemetry = np.concatenate([
             info["velocity"]/20.0,
@@ -362,6 +362,7 @@ for episode in range(last_episode, NUM_EPISODES):
         ]).astype(np.float32)
 
         replay_buffer.add(replay_data)
+
 
     replay_buffer.writer.close()
 
@@ -378,6 +379,7 @@ for episode in range(last_episode, NUM_EPISODES):
 
     replay_buffer.writer.open()
 
+
     for _ in range(50):
         critic_loss, actor_loss = update_sac(
             actor, critic, critic_target,
@@ -391,11 +393,11 @@ for episode in range(last_episode, NUM_EPISODES):
     episode_log = {
         "episode": episode,
         "steps": step,
-        "intrinsic_reward_mean": float(torch.tensor(intrinsic_rewards_list).mean()),
-        "intrinsic_reward_std": float(torch.tensor(intrinsic_rewards_list).std(unbiased=False)),
-        "env_reward_total": float(sum(env_rewards_list)),
-        "total_reward_mean": float(torch.tensor(total_rewards_list).mean()),
-        "total_reward_std": float(torch.tensor(total_rewards_list).std(unbiased=False)),
+        "intrinsic_reward_mean": float(normalized_ir_episode.mean()),
+        "intrinsic_reward_std": float(normalized_ir_episode.std(unbiased=False)),
+        "env_reward_total": float(sum(env_rewards)),
+        "total_reward_mean": float(total_reward_tensor.mean()),
+        "total_reward_std": float(total_reward_tensor.std(unbiased=False)),
         "encoder_loss_mean": float(torch.tensor(encoder_losses_list).mean()),
         "encoder_loss_std": float(torch.tensor(encoder_losses_list).std(unbiased=False)),
         "decoder_loss_mean": float(torch.tensor(decoder_losses_list).mean()),

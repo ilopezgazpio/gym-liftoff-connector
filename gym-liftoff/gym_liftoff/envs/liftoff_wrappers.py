@@ -22,12 +22,12 @@ class LiftoffWrapStability(gym.Wrapper):
         if self.past_actions is None:
             self.past_actions = np.zeros_like(action)
 
-        continuous_action = self.discrete2continuous(action)
-        delta_action = abs(continuous_action - self.past_actions)
-        self.past_actions = continuous_action
+
+        delta_action = abs(action - self.past_actions)
+        #print(f"Past Action: {self.past_actions}, Action: {action}, Delta: {delta_action}")
+        self.past_actions = action.copy()
 
         reward = reward + self.ponderation * self.get_reward(delta_action)
-
         return obs, reward, terminated, truncated, info
 
     def get_reward(self, delta_action):

@@ -7,7 +7,7 @@ import numpy as np
 from collections import deque
 
 class LMDBReplayBuffer:
-    def __init__(self, path, obs_shape, act_size, tel_size, max_size = 40000,seq_len = 10, map_size=int(1e12), device='cuda', padding = True):
+    def __init__(self, path, obs_shape, act_size, tel_size, max_size = 40000,seq_len = 15, map_size=int(1e12), device='cuda', padding = True):
         self.seq_len = seq_len
         self.device = device
         self.writer = LMDBWriter(lmdb_path=path, map_size= map_size, max_size = max_size, replay_buffer= True, pickle_save=False)
@@ -28,40 +28,53 @@ class LMDBReplayBuffer:
         self.size = min(self.size + 1, self.max_size)
 
     def sample(self, batch_size):
-        obs_batch = np.zeros((batch_size, self.seq_len, *self.obs_shape), dtype=np.float32)
+        obs_batch = np.zeros((batch_size, *self.obs_shape), dtype=np.float32)
         act_batch = np.zeros((batch_size, self.seq_len, self.act_size), dtype=np.float32)
-        rew_batch = np.zeros((batch_size, self.seq_len, 1), dtype=np.float32)
-        done_batch = np.zeros((batch_size, self.seq_len, 1), dtype=np.float32)
+        rew_batch = np.zeros((batch_size, 1), dtype=np.float32)
+        done_batch = np.zeros((batch_size, 1), dtype=np.float32)
         tel_batch = np.zeros((batch_size, self.seq_len, self.tel_size), dtype=np.float32)
 
         next_obs_batch = np.zeros((batch_size, *self.obs_shape), dtype=np.float32)
         next_tel_batch = np.zeros((batch_size, self.tel_size), dtype=np.float32)
 
         max_valid_idx = self.writer.idx if self.writer.idx < self.max_size else self.max_size
-
         with self.writer.env.begin() as txn:
             for i in range(batch_size):
                 idx = random.randint(0, max_valid_idx - 1)  # -2 para asegurar next
                 seq_start = idx - self.seq_len + 1
-
+                #print("idx:",idx)
                 valid_len = 0
 
                 for t in range(self.seq_len - 1):
-                    real_idx = (seq_start + t) % max_valid_idx
+                    real_idx = (idx - t - 1) % max_valid_idx
+                    #print(real_idx)
                     raw = txn.get(f"{real_idx:08}".encode())
 
-                    obs, act, rew, done, tel = self.decode(raw)
+                    _, act, _, done, tel = self.decode(raw)
 
                     if done > 0:
                         break
+                    #print("done: ",done)
 
-                    obs_batch[i, t] = obs
-                    act_batch[i, t] = act
-                    rew_batch[i, t, 0] = rew
-                    done_batch[i, t, 0] = done
-                    tel_batch[i, t] = tel
+                    act_batch[i, -t-2] = act
+                    tel_batch[i, -t-2] = tel
 
                     valid_len += 1
+
+                raw = txn.get(f"{idx:08}".encode())
+
+                obs, act, rew, done, tel = self.decode(raw)
+                obs_batch[i] = obs
+                act_batch[i, -1] = act
+                done_batch[i, 0] = done
+                rew_batch[i, 0] = rew
+                tel_batch[i, -1] = tel
+                """
+                print(act_batch.shape)
+                print(tel_batch.shape)
+                print(done_batch.shape)
+                print(rew_batch.shape)
+                """
 
                 raw_next = txn.get(f"{(idx + 1) % max_valid_idx:08}".encode())
 
@@ -69,20 +82,6 @@ class LMDBReplayBuffer:
                 next_obs_batch[i] = next_obs
                 next_tel_batch[i] = next_tel
 
-                # padding si hace falta
-                if self.padding and valid_len < self.seq_len:
-                    pad = self.seq_len - valid_len
-                    obs_batch[i] = np.roll(obs_batch[i], shift=pad, axis=0)
-                    act_batch[i] = np.roll(act_batch[i], shift=pad, axis=0)
-                    rew_batch[i] = np.roll(rew_batch[i], shift=pad, axis=0)
-                    done_batch[i] = np.roll(done_batch[i], shift=pad, axis=0)
-                    tel_batch[i] = np.roll(tel_batch[i], shift=pad, axis=0)
-
-                    obs_batch[i, :pad] = 0
-                    act_batch[i, :pad] = 0
-                    rew_batch[i, :pad] = 0
-                    done_batch[i, :pad] = 0
-                    tel_batch[i, :pad] = 0
 
         return (
             torch.from_numpy(obs_batch),

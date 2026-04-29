@@ -5,7 +5,7 @@ import time
 from torch.distributions import Normal, TransformedDistribution
 from torch.distributions.transforms import TanhTransform
 import torch.nn.functional as F
-
+import random
 LOG_STD_MIN = -20
 LOG_STD_MAX = 1
 EPS = 1e-6  # Action clipping
@@ -68,32 +68,35 @@ class CriticSAC_LSTM(nn.Module):
         )
 
         self.lstm = nn.LSTM(
-            input_size=hidden_size + action_dim + telemetry_len,  # concatenamos acción
+            input_size=action_dim + telemetry_len,  # concatenamos acción
             hidden_size=hidden_size,
             num_layers=lstm_layers,
             batch_first=True
         )
 
+        self.fc = nn.Sequential(
+            nn.Linear(2*hidden_size, hidden_size),
+            nn.ReLU()
+        )
+
         self.q1 = nn.Linear(hidden_size, 1)
         self.q2 = nn.Linear(hidden_size, 1)
 
-    def forward(self, obs_seq, action_seq, telemetry_seq):
+    def forward(self, obs, action_seq, telemetry_seq):
         """
         obs_seq: [batch, seq_len, C, H, W]
         action_seq: [batch, seq_len, action_dim]
         telemetry_seq: [batch, seq_len, telemetry_len]
         """
-        batch, seq_len, C, H, W = obs_seq.shape
-        obs_flat = obs_seq.view(batch * seq_len, C, H, W)
-        z_obs = self.encoder(obs_flat)  # [batch*seq_len, hidden_size]
-        z_obs = z_obs.view(batch, seq_len, -1)  # [batch, seq_len, hidden_size]
+        z_obs = self.encoder(obs)  # [batch*seq_len, hidden_size]
 
-        lstm_input = torch.cat([z_obs, action_seq, telemetry_seq], dim=-1)  # [batch, seq_len, hidden_size + action_dim + telemetry_len]
+        lstm_input = torch.cat([action_seq, telemetry_seq], dim=-1)  # [batch, seq_len, hidden_size + action_dim + telemetry_len]
 
         lstm_out, _ = self.lstm(lstm_input)  # [batch, seq_len, hidden_size]
         lstm_out_last = lstm_out[:, -1, :]  # solo último step (para Q-target)
+        z = self.fc(torch.cat([z_obs, lstm_out_last], dim = -1))
 
-        return self.q1(lstm_out_last), self.q2(lstm_out_last)
+        return self.q1(z), self.q2(z)
 
 
 
@@ -116,18 +119,33 @@ def update_sac(actor, critic, critic_target, buffer, actor_opt, critic_opt, batc
         next_action, next_log_prob = actor.sample(next_obs, act[:, -1])
 
         next_act_seq = torch.cat([act[:, 1:], next_action.unsqueeze(1)], dim = 1)
-        next_obs_seq = torch.cat([obs[:, 1:], next_obs.unsqueeze(1)], dim=1)
         next_tel_seq = torch.cat([tel[:, 1:], next_tel.unsqueeze(1)], dim=1)
 
-        target_q1, target_q2 = critic_target(next_obs_seq, next_act_seq, next_tel_seq)
-        target_q = torch.min(target_q1, target_q2) - ALPHA * next_log_prob
 
+        target_q1, target_q2 = critic_target(next_obs, next_act_seq, next_tel_seq)
+        target_q = torch.min(target_q1, target_q2) - ALPHA * next_log_prob
         done_t = done[:, -1].unsqueeze(-1)
         rew_t = rew[:, -1].unsqueeze(-1)
 
         target_q = rew_t + GAMMA * (1 - done_t) * target_q
-
     current_q1, current_q2 = critic(obs, act, tel)
+    if random.random() < 0.005:
+        with torch.no_grad():
+            print("----- CRITIC DEBUG -----")
+            print("Q1 mean:", current_q1.mean().item())
+            print("Q1 std:", current_q1.std().item())
+            print("Q2 mean:", current_q2.mean().item())
+            print("Q2 std:", current_q2.std().item())
+
+            print("Target Q mean:", target_q.mean().item())
+            print("Target Q std:", target_q.std().item())
+
+            td_error = current_q1 - target_q
+            print("TD error mean:", td_error.mean().item())
+            print("TD error std:", td_error.std().item())
+
+            print("Q1-Q2 diff:", (current_q1 - current_q2).abs().mean().item())
+
     critic_loss = F.mse_loss(current_q1, target_q) + F.mse_loss(current_q2, target_q)
 
     critic_opt.zero_grad()
@@ -135,7 +153,7 @@ def update_sac(actor, critic, critic_target, buffer, actor_opt, critic_opt, batc
     critic_opt.step()
 
 
-    new_action, log_prob = actor.sample(obs[:, -1], act[:, -2])
+    new_action, log_prob = actor.sample(obs, act[:, -2])
     next_act_seq = torch.cat([act[:, :-1], new_action.unsqueeze(1)], dim=1)
     q1_new, q2_new = critic(obs, next_act_seq, tel)
     actor_loss = (ALPHA * log_prob - torch.min(q1_new, q2_new)).mean()

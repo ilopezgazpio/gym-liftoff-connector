@@ -1,7 +1,7 @@
 import numpy as np
 
 class CrashDetector:
-    def __init__(self, vel_min=10, input_min=1e-1, crash_threshold_counter=10, attitude_threshold=-0.65):
+    def __init__(self, vel_min=10, input_min=1e-1, crash_threshold_counter=3, attitude_threshold=-0.65):
         self.vel_min = vel_min
         self.input_min = input_min
         self.crash_threshold_counter = crash_threshold_counter
@@ -35,7 +35,7 @@ class CrashDetector:
                 self.crash_counter += 1
             else:
                 self.crash_counter = 0
-        elif speed < 0.2:
+        elif speed < 2:
             self.crash_counter += 1
         else:
             self.crash_counter = 0
