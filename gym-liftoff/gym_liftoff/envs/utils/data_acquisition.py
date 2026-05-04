@@ -80,12 +80,13 @@ for _ in range(50):
     log(step, "yaw_init", action, info)
     step += 1
 
-for yaw in range(1200, 2000, 100):
+# señal tipo step alternante
+yaw_values = [1200, 1800, 1200, 1800, 1200]
 
+for yaw in yaw_values:
     action = [HOVER_THROTTLE, yaw, 1024, 1024]
 
-    for _ in range(20):
-
+    for _ in range(60):
         _, _, _, _, info = env.step(action)
         log(step, "yaw", action, info)
         step += 1

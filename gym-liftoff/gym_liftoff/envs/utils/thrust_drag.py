@@ -5,9 +5,10 @@ import matplotlib.pyplot as plt
 # =========================
 # CONFIG
 # =========================
-MASS = 0.675    # ajusta a tu dron
+MASS = 0.675
 GRAVITY = 9.81
-I_zz = 0.0005
+I_zz = 0.005
+
 # =========================
 # LOAD DATA
 # =========================
@@ -15,27 +16,30 @@ df = pd.read_csv("liftoff_identification_data.csv")
 
 RPM_TO_RAD = 2 * np.pi / 60
 
-df["m1"] = df["m1"] * RPM_TO_RAD
-df["m2"] = df["m2"] * RPM_TO_RAD
-df["m3"] = df["m3"] * RPM_TO_RAD
-df["m4"] = df["m4"] * RPM_TO_RAD
+for m in ["m1", "m2", "m3", "m4"]:
+    df[m] = df[m] * RPM_TO_RAD
+
+# =========================
+# TIEMPO
+# =========================
+df["timestamp"] = df["timestamp"].str.strip("[]").astype(float)
+df["dt"] = df["timestamp"].diff()
+
+# =========================
+# SUAVIZADO (muy importante)
+# =========================
+df["vy"] = df["vy"].rolling(5).mean()
+df["wz"] = df["wz"].rolling(5).mean()
 
 # =========================
 # DERIVADAS
 # =========================
-df["timestamp"] = df["timestamp"].str.strip("[]")
-df["timestamp"] = df["timestamp"].astype(float)
-df["dt"] = df["timestamp"].diff()
-
-# aceleración vertical (Unity → Y)
 df["ay"] = df["vy"].diff() / df["dt"]
+df["wz_dot"] = df["wz"].diff() / df["dt"]
 
-# aceleración angular yaw
-wy = df["wz"]
+# momento de yaw
+df["Mz"] = I_zz * df["wz_dot"]
 
-df["wz_dot"] = wy / df["dt"]
-
-# eliminar primeras filas
 df = df.dropna()
 
 # =========================
@@ -54,54 +58,66 @@ df["yaw_term"] = (
 df["T"] = MASS * (df["ay"] + GRAVITY)
 
 # =========================
-# FILTRADO (muy importante)
+# FILTRADO GLOBAL
 # =========================
-# evitar datos basura (caídas, saturaciones, etc.)
 df = df[(df["S"] > 1e-3)]
 df = df[np.abs(df["ay"]) < 20]
-df = df[np.abs(df["wz_dot"]) < 50]
+df = df[np.abs(df["wz_dot"]) < 100]
 
 # =========================
-# ESTIMACIÓN kt
+# ========= k_t ===========
 # =========================
-X_t = df["S"].values
-y_t = df["T"].values
+df_t = df[df["phase"] == "thrust"].copy()
 
-kt = np.sum(X_t * y_t) / np.sum(X_t**2)
-plt.scatter(X_t, y_t, s=5)
+# opcional: quitar rotación residual
+df_t = df_t[np.abs(df_t["wz"]) < 1.0]
 
-# =========================
-# ESTIMACIÓN kd'
-# =========================
-X_d = df["yaw_term"].values
-y_d = df["wz_dot"].values
+X_t = df_t["S"].values
+y_t = df_t["T"].values
 
-kd_prime = np.sum(X_d * y_d) / np.sum(X_d**2)
+A_t = np.vstack([X_t, np.ones(len(X_t))]).T
+kt, b = np.linalg.lstsq(A_t, y_t, rcond=None)[0]
 
-# =========================
-# RESULTADOS
-# =========================
-print("===== RESULTADOS =====")
-print("k_t =", kt)
-print("k_d' =", kd_prime)
-
-A = np.vstack([X_t, np.ones(len(X_t))]).T
-kt, b = np.linalg.lstsq(A, y_t, rcond=None)[0]
-
-print("===== RESULTADOS Mediante Minimos Cuadrados=====")
+print("===== k_t =====")
 print("k_t =", kt)
 print("bias =", b)
 
-y_pred = kt * X_t + b
-error = y_t - y_pred
+# calidad ajuste
+y_pred_t = kt * X_t + b
+r2_t = 1 - np.sum((y_t - y_pred_t)**2) / np.sum((y_t - np.mean(y_t))**2)
+print("R2_t =", r2_t)
 
-ss_res = np.sum(error**2)
-ss_tot = np.sum((y_t - np.mean(y_t))**2)
-
-r2 = 1 - ss_res / ss_tot
-print("R2 =", r2)
-
+plt.figure()
 plt.scatter(X_t, y_t, s=5, label="data")
-plt.plot(X_t, y_pred, color="red", label="fit")
+plt.plot(X_t, y_pred_t, color="red", label="fit")
+plt.title("Thrust fit")
 plt.legend()
+
+# =========================
+# ========= k_d ===========
+# =========================
+df_d = df[df["phase"] == "yaw"].copy()
+
+# quitar muestras sin excitación
+df_d = df_d[np.abs(df_d["yaw_term"]) > 1e-3]
+
+X_d = df_d["yaw_term"].values
+y_d = df_d["Mz"].values
+
+kd = np.linalg.lstsq(X_d.reshape(-1, 1), y_d, rcond=None)[0][0]
+
+print("\n===== k_d =====")
+print("k_d =", kd)
+
+# calidad ajuste
+y_pred_d = kd * X_d
+r2_d = 1 - np.sum((y_d - y_pred_d)**2) / np.sum((y_d - np.mean(y_d))**2)
+print("R2_d =", r2_d)
+
+plt.figure()
+plt.scatter(X_d, y_d, s=5, label="data")
+plt.plot(X_d, y_pred_d, color="red", label="fit")
+plt.title("Yaw fit")
+plt.legend()
+
 plt.show()
