@@ -5,10 +5,10 @@ from collections import deque
 class CrashDetector:
     def __init__(
         self,
-        kt,
-        kd,
-        mass=1.0,
-        inertia_z=1.0,
+        kt= 1.8e-6,
+        kd = 2e-7,
+        mass=0.675,
+        inertia_z=0.005,
         window_size=20,
         tau=0.05,
         c_acc=0.5,
@@ -49,12 +49,13 @@ class CrashDetector:
         self.filtered_acc = np.zeros(2)
         self.filtered_yaw = 0.0
         self.crash = False
+        self.prev_acc = None
 
-    def step(self, info):
+    def is_crashed(self, info):
         vel = np.array(info["velocity"])
-        gyro = np.array(info["angular_velocity"])
+        gyro = np.array(info["gyro"])
         R = np.array(info["rotation"])
-        rpm = np.array(info["motorRPM"])
+        rpm = np.array(info["motorrpm"])
         t = info["timestamp"]
 
         # =========================
@@ -74,8 +75,11 @@ class CrashDetector:
         # =========================
         # ACELERACION IMU (numérica)
         # =========================
+
         acc_imu = (vel - self.prev_velocity) / dt
-        acc_imu = 0.7 * acc_imu + 0.3 * getattr(self, "prev_acc", acc_imu)
+        if self.prev_acc is None:
+            self.prev_acc = acc_imu
+        acc_imu = 0.7 * acc_imu + 0.3 * self.prev_acc
         self.prev_acc = acc_imu
 
         # =========================
