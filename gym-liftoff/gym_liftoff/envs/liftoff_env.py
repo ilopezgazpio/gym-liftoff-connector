@@ -43,7 +43,7 @@ class Liftoff(gym.Env):
         return sc_h, sc_w
 
 
-    def __init__(self, continuous_action_mode = False, max_episode_time = None):
+    def __init__(self, max_episode_time = None):
 
         """
         Args:
@@ -67,7 +67,7 @@ class Liftoff(gym.Env):
         self.crash_detector = CrashDetector()
 
         self.telemetry_path = Path.home() / ".config/unity3d" / "LuGus Studios" / "Liftoff" / "TelemetryConfiguration.json"
-        self.telemetry_len_path = "./delta_data/telemetry_len_data.json"
+        self.telemetry_len_path = current_dir = Path(__file__).resolve().parent / "delta_data" / "telemetry_len_data.json"
         self.telemetry_len, self.telemetry_points, self.telemetry_points_len = self.get_telemetry_len()
 
         logger.info("Initializing environment.....")

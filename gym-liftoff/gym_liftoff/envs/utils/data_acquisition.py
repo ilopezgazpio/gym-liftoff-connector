@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from gym_liftoff.envs.liftoff_env import Liftoff
 
-env = Liftoff()
+env = Liftoff(max_episode_time = [1, 0, 0, 0])
 
 # =========================
 # CONFIG
@@ -57,14 +57,15 @@ step = 0
 # =========================================================
 print("Phase 1: thrust identification")
 
-for throttle in range(800, 1600, 100):
+for throttle in range(1200, 2000, 100):
 
     action = [throttle, 1024, 1024, 1024]
 
-    for _ in range(20):  # estabilización por nivel
+    for _ in range(50):  # estabilización por nivel
 
         _, _, _, _, info = env.step(action)
         log(step, "thrust", action, info)
+        print(info["motorrpm"])
         step += 1
 
 # =========================================================
@@ -79,17 +80,15 @@ for _ in range(50):
     log(step, "yaw_init", action, info)
     step += 1
 
-for yaw in [1100, 1200, 1300, 1400, 1500]:
+for yaw in range(1200, 2000, 100):
 
     action = [HOVER_THROTTLE, yaw, 1024, 1024]
 
-    for _ in range(40):
+    for _ in range(20):
 
         _, _, _, _, info = env.step(action)
         log(step, "yaw", action, info)
         step += 1
-
-
 
 # =========================
 # SAVE

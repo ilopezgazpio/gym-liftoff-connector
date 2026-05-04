@@ -13,16 +13,27 @@ I_zz = 0.0005
 # =========================
 df = pd.read_csv("liftoff_identification_data.csv")
 
+RPM_TO_RAD = 2 * np.pi / 60
+
+df["m1"] = df["m1"] * RPM_TO_RAD
+df["m2"] = df["m2"] * RPM_TO_RAD
+df["m3"] = df["m3"] * RPM_TO_RAD
+df["m4"] = df["m4"] * RPM_TO_RAD
+
 # =========================
 # DERIVADAS
 # =========================
+df["timestamp"] = df["timestamp"].str.strip("[]")
+df["timestamp"] = df["timestamp"].astype(float)
 df["dt"] = df["timestamp"].diff()
 
 # aceleración vertical (Unity → Y)
 df["ay"] = df["vy"].diff() / df["dt"]
 
 # aceleración angular yaw
-df["wz_dot"] = df["wz"].diff() / df["dt"]
+wy = df["wz"]
+
+df["wz_dot"] = wy / df["dt"]
 
 # eliminar primeras filas
 df = df.dropna()

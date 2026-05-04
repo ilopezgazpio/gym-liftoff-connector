@@ -68,7 +68,7 @@ class CriticSAC_LSTM(nn.Module):
         )
 
         self.lstm = nn.LSTM(
-            input_size=hidden_size + action_dim + telemetry_len,  # concatenamos acción
+            input_size=action_dim + telemetry_len,  # concatenamos acción
             hidden_size=hidden_size,
             num_layers=lstm_layers,
             batch_first=True
@@ -77,18 +77,15 @@ class CriticSAC_LSTM(nn.Module):
         self.q1 = nn.Linear(hidden_size, 1)
         self.q2 = nn.Linear(hidden_size, 1)
 
-    def forward(self, obs_seq, action_seq, telemetry_seq):
+    def forward(self, obs, action_seq, telemetry_seq):
         """
         obs_seq: [batch, seq_len, C, H, W]
         action_seq: [batch, seq_len, action_dim]
         telemetry_seq: [batch, seq_len, telemetry_len]
         """
-        batch, seq_len, C, H, W = obs_seq.shape
-        obs_flat = obs_seq.view(batch * seq_len, C, H, W)
-        z_obs = self.encoder(obs_flat)  # [batch*seq_len, hidden_size]
-        z_obs = z_obs.view(batch, seq_len, -1)  # [batch, seq_len, hidden_size]
+        z_obs = self.encoder(obs)  # [batch*seq_len, hidden_size]
 
-        lstm_input = torch.cat([z_obs, action_seq, telemetry_seq], dim=-1)  # [batch, seq_len, hidden_size + action_dim + telemetry_len]
+        lstm_input = torch.cat([action_seq, telemetry_seq], dim=-1)  # [batch, seq_len, hidden_size + action_dim + telemetry_len]
 
         lstm_out, _ = self.lstm(lstm_input)  # [batch, seq_len, hidden_size]
         lstm_out_last = lstm_out[:, -1, :]  # solo último step (para Q-target)

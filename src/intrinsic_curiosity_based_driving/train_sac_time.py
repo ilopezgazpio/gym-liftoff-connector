@@ -53,7 +53,7 @@ env = LiftoffWrapConstantTime(env)
 print("Observation space:", env.observation_space)
 print("Action space:", env.action_space)
 
-NUM_EPISODES = 20000
+NUM_EPISODES = 20001
 NUM_ENSEMBLE_MODELS = 8
 LATENT_DIM = 64
 ACTION_DIM = 4
