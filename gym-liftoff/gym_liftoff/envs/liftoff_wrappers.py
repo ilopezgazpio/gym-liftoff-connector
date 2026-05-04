@@ -6,8 +6,6 @@ from pathlib import Path
 import json
 import math
 
-from intrinsic_curiosity_based_driving.pkl_read import position
-
 
 class LiftoffWrapStability(gym.Wrapper):
     def __init__(self, env, ponderation = 1.0, delta_margin = True):

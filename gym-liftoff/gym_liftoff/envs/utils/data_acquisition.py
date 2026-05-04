@@ -65,6 +65,7 @@ for throttle in range(1200, 2000, 100):
 
         _, _, _, _, info = env.step(action)
         log(step, "thrust", action, info)
+        print(info["motorrpm"])
         step += 1
 
 # =========================================================
@@ -79,11 +80,11 @@ for _ in range(50):
     log(step, "yaw_init", action, info)
     step += 1
 
-for yaw in [1100, 1200, 1300, 1400, 1500]:
+for yaw in range(1200, 2000, 100):
 
     action = [HOVER_THROTTLE, yaw, 1024, 1024]
 
-    for _ in range(40):
+    for _ in range(20):
 
         _, _, _, _, info = env.step(action)
         log(step, "yaw", action, info)
@@ -99,8 +100,8 @@ for _ in range(300):
     action = [
         HOVER_THROTTLE + np.random.randint(-50, 50),
         1024,
-        np.random.randint(-20, 20),
-        np.random.randint(-20, 20),
+        HOVER_THROTTLE + np.random.randint(-20, 20),
+        HOVER_THROTTLE + np.random.randint(-20, 20),
     ]
 
     _, _, _, _, info = env.step(action)
