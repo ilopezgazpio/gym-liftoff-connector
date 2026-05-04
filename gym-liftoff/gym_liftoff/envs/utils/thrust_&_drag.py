@@ -1,12 +1,13 @@
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 # =========================
 # CONFIG
 # =========================
 MASS = 0.675    # ajusta a tu dron
 GRAVITY = 9.81
-
+I_zz = 0.0005
 # =========================
 # LOAD DATA
 # =========================
@@ -56,6 +57,7 @@ X_t = df["S"].values
 y_t = df["T"].values
 
 kt = np.sum(X_t * y_t) / np.sum(X_t**2)
+plt.scatter(X_t, y_t, s=5)
 
 # =========================
 # ESTIMACIÓN kd'
@@ -71,3 +73,24 @@ kd_prime = np.sum(X_d * y_d) / np.sum(X_d**2)
 print("===== RESULTADOS =====")
 print("k_t =", kt)
 print("k_d' =", kd_prime)
+
+A = np.vstack([X_t, np.ones(len(X_t))]).T
+kt, b = np.linalg.lstsq(A, y_t, rcond=None)[0]
+
+print("===== RESULTADOS Mediante Minimos Cuadrados=====")
+print("k_t =", kt)
+print("bias =", b)
+
+y_pred = kt * X_t + b
+error = y_t - y_pred
+
+ss_res = np.sum(error**2)
+ss_tot = np.sum((y_t - np.mean(y_t))**2)
+
+r2 = 1 - ss_res / ss_tot
+print("R2 =", r2)
+
+plt.scatter(X_t, y_t, s=5, label="data")
+plt.plot(X_t, y_pred, color="red", label="fit")
+plt.legend()
+plt.show()

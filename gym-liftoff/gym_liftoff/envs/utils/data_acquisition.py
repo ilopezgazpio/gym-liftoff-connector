@@ -30,9 +30,9 @@ def log(step, phase, action, info):
         "vy": info["velocity"][1],
         "vz": info["velocity"][2],
 
-        "wx": info["angular_velocity"][0],
-        "wy": info["angular_velocity"][1],
-        "wz": info["angular_velocity"][2],
+        "wx": info["gyro"][0],
+        "wy": info["gyro"][1],
+        "wz": info["gyro"][2],
 
         "m1": info["motorrpm"][0],
         "m2": info["motorrpm"][1],
@@ -89,23 +89,7 @@ for yaw in [1100, 1200, 1300, 1400, 1500]:
         log(step, "yaw", action, info)
         step += 1
 
-# =========================================================
-# FASE 3: PERTURBACIONES (robustez)
-# =========================================================
-print("Phase 3: perturbations")
 
-for _ in range(300):
-
-    action = [
-        HOVER_THROTTLE + np.random.randint(-50, 50),
-        1024,
-        np.random.randint(-20, 20),
-        np.random.randint(-20, 20),
-    ]
-
-    _, _, _, _, info = env.step(action)
-    log(step, "noise", action, info)
-    step += 1
 
 # =========================
 # SAVE
