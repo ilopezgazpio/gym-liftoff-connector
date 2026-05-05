@@ -117,7 +117,7 @@ class CrashDetector:
         self.prev_omega_e = omega_e
 
         # Unity: yaw = eje Y
-        omega_imu = gyro[1]
+        omega_imu = gyro[2]
 
         # =========================
         # RESIDUALES
