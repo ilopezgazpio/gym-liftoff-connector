@@ -61,14 +61,14 @@ from collections import deque
 class CrashDetector:
     def __init__(
         self,
-        kt= 1.8e-6,
-        kd = 2e-7,
+        kt= 1.5e-6,
+        kd = 1e-6,
         mass=0.675,
         inertia_z=0.005,
-        window_size=20,
-        tau=0.05,
-        c_acc=0.5,
-        c_yaw=0.2,
+        window_size=7,
+        tau=0.15,
+        c_acc=0,
+        c_yaw=0,
     ):
         self.kt = kt
         self.kd = kd
@@ -113,7 +113,6 @@ class CrashDetector:
         R = np.array(info["rotation"])
         rpm = np.array(info["motorrpm"])
         t = info["timestamp"]
-        #print(vel)
 
         # =========================
         # dt
@@ -161,39 +160,32 @@ class CrashDetector:
         a_imu_xy = np.array([acc_imu[0], acc_imu[2]])
 
         # =========================
-        # YAW ESPERADO
-        # =========================
-        yaw_term = (omega[0]**2 + omega[2]**2) - (omega[1]**2 + omega[3]**2)
-        tau_z = self.kd * yaw_term
-
-        omega_e = self.prev_omega_e + (tau_z / self.Iz) * dt
-        self.prev_omega_e = omega_e
-
-        # Unity: yaw = eje Y
-        omega_imu = gyro[2]
-
-        # =========================
         # RESIDUALES
         # =========================
         delta_a = a_exy - a_imu_xy
-        delta_w = omega_e - omega_imu
+        #delta_w = omega_e - omega_imu
 
         # =========================
         # FILTRO
         # =========================
         self.filtered_acc = (1 - beta) * self.filtered_acc + beta * delta_a
-        self.filtered_yaw = (1 - beta) * self.filtered_yaw + beta * delta_w
-        #self.filtered_acc = delta_a
-        #self.filtered_yaw = delta_w
 
         acc_norm = np.linalg.norm(self.filtered_acc)
-        yaw_abs = abs(self.filtered_yaw)
+        omega_imu = gyro[2]
+
+        if hasattr(self, "prev_omega"):
+            delta_w = omega_imu - self.prev_omega
+        else:
+            delta_w = 0.0
+
+        self.prev_omega = omega_imu
+
+        yaw_abs = abs(delta_w)
 
         # =========================
         # BUFFER
         # =========================
         self.acc_residuals.append(acc_norm)
-        self.yaw_residuals.append(yaw_abs[0])
 
 
 
@@ -206,14 +198,13 @@ class CrashDetector:
             return False
         else:
             k_acc = np.mean(np.diff(np.array(self.acc_residuals)) ** 2)
-            k_yaw = np.mean(np.diff(np.array(self.yaw_residuals)) ** 2)
             H_acc = k_acc * np.linalg.norm(a_exy) + self.c_acc
-            H_yaw = k_yaw * abs(omega_e) + self.c_yaw
+            H_yaw = 27.0
+            """
             print("Metricas")
             print(acc_norm, yaw_abs)
             print(H_acc, H_yaw)
-            #H_acc = 50.0
-            #H_yaw = 25.0
+            """
 
         # =========================
         # DETECCIÓN

@@ -1,10 +1,9 @@
 from gym_liftoff.envs.liftoff_env import Liftoff
 from gym_liftoff.envs.liftoff_wrappers import LiftoffWrapStability, LiftoffWrapContinuousAction, LiftoffWrapRandomPosition, LiftoffWrapGyro
 
-from intrinsic_curiosity_based_driving.train_sac_time import reward
 from src.utils.datasets import LMDBIntrinsicCuriosityDataset
 from src.utils.ensemble import SmallEnsemble, StateEncoder, StateDecoder
-from src.utils.sac import ActorSAC, CriticSAC_LSTM, update_sac
+from src.utils.sac import CriticSAC_GADP, ActorSAC_GADP, update_sac_n_steps
 from src.utils.lmdb_utils import LMDBWriter
 from src.utils.datasets import PPODataset
 from src.utils.ReplayBuffer import LMDBReplayBuffer
@@ -23,7 +22,7 @@ current_dir = Path(__file__).resolve().parent
 lmdb_path = current_dir / "lmdb_episode"
 replay_buffer_path = current_dir / "replay_buffer_lmdb"
 info_path = current_dir / "infos"
-logs_path = current_dir.parent.parent/ "logs" / "training_sac_time_reward_logs.json"
+logs_path = current_dir.parent.parent/ "logs" / "training_sac_position_reward_logs.json"
 
 def save_last_episode(episode:int):
     with last_episode_saving_path.open("w") as f:
@@ -64,9 +63,9 @@ cpu = torch.device("cpu")
 # =================
 
 
-actor = ActorSAC(action_dim=ACTION_DIM)
-critic = CriticSAC_LSTM(action_dim=ACTION_DIM)
-critic_target = CriticSAC_LSTM(action_dim=ACTION_DIM)
+actor = ActorSAC_GADP(action_dim=ACTION_DIM)
+critic = CriticSAC_GADP(action_dim=ACTION_DIM)
+critic_target = CriticSAC_GADP(action_dim=ACTION_DIM)
 critic_target.load_state_dict(critic.state_dict())
 
 checkpoint = None
@@ -102,10 +101,8 @@ if checkpoint:
 # Initialize Worker and LMDB
 # =================
 
-writer = LMDBWriter(lmdb_path=str(lmdb_path))
-replay_buffer = LMDBReplayBuffer(path = str(replay_buffer_path), obs_shape= env.observation_space.shape, act_size= ACTION_DIM, tel_size=15)
+replay_buffer = LMDBReplayBuffer(path = str(replay_buffer_path), obs_shape= env.observation_space.shape, act_size= ACTION_DIM, tel_size=27)
 replay_buffer.writer.clear_database()
-
 # =================
 # Image Normalization
 # =================
@@ -135,7 +132,7 @@ for episode in range(last_episode, NUM_EPISODES):
     done = False
 
     previous_action = torch.zeros((1, ACTION_DIM), dtype = torch.float32).to(device)
-    past_distance2goal = info["distance2goal"]
+    past_distance2goal = info["distance2goal"]["vec"]
 
     step = 0
 
@@ -154,17 +151,35 @@ for episode in range(last_episode, NUM_EPISODES):
         info["goal_norm"],
     ])
 
+    print(basic_tel.shape, pos_tel.shape)
+
+    telemetry = np.concatenate([
+        basic_tel,
+        pos_tel,
+        info["distance2goal"]["vec"],
+        past_distance2goal
+    ])
+
     while not done:
         obs_tensor = torch.from_numpy(obs).float() / 255.0
         obs_tensor_norm = normalize(obs_tensor)
         obs_tensor_norm = obs_tensor_norm.unsqueeze(0)
 
-        action, log_prob = actor.sample(obs_tensor_norm.to(device), previous_action, basic_tel, pos_tel)
+
+
+        action, log_prob = actor.sample(obs_tensor_norm.to(device), previous_action, torch.tensor(telemetry, dtype = torch.float32).unsqueeze(0).to(device))
 
         next_obs, reward, terminated, truncated, info = env.step(action.squeeze(0).detach().cpu().numpy())
         done = terminated or truncated
 
         t = step
+
+        replay_data = np.concatenate([
+            obs.reshape(-1),
+            action.detach().cpu().numpy().reshape(-1),
+            telemetry,
+            np.array([reward, done, t], dtype=np.float32),
+        ]).astype(np.float32)
 
         basic_tel = np.concatenate([
             info["velocity"]/20.0,
@@ -183,16 +198,9 @@ for episode in range(last_episode, NUM_EPISODES):
             past_distance2goal
         ])
 
-        replay_data = np.concatenate([
-            obs.reshape(-1),
-            action.detach().cpu().numpy().reshape(-1),
-            telemetry,
-            np.array([reward, done, t], dtype=np.float32),
-        ]).astype(np.float32)
-
         replay_buffer.add(replay_data)
 
-        past_distance2goal = info["distance2goal"]
+        past_distance2goal = info["distance2goal"]["vec"]
         env_rewards.append(reward)
 
         previous_action = action.detach()
@@ -209,24 +217,10 @@ for episode in range(last_episode, NUM_EPISODES):
 
         step += 1
 
-    crash_reason = info["crash_reason"]
-    if crash_reason == 't':
-        N = 25
-        decay = 0.97
-    elif crash_reason == 's':
-        N = 12
-        decay = 0.97
-    else:
-        N = 0
-        decay = 0
-
-    if crash_reason != None:
-        replay_buffer.propagate_reward(N = N, decay=decay)
-
-
-
     torch.cuda.empty_cache()
 
+    print(terminated, truncated)
+    replay_buffer.writer.close()
     print(f"Episode finished in {step} steps, total env reward: {sum(env_rewards):.3f}")
 
     critic = critic.to(device)
@@ -234,9 +228,10 @@ for episode in range(last_episode, NUM_EPISODES):
     actor = actor.to(device)
     critic = critic.to(device)
     critic_target = critic_target.to(device)
+    replay_buffer.writer.open()
 
     for _ in range(50):
-        critic_loss, actor_loss = update_sac(
+        critic_loss, actor_loss = update_sac_n_steps(
             actor, critic, critic_target,
             replay_buffer, actor_opt, critic_opt,
             batch_size=BATCH_SIZE, device=device, normalize=normalize

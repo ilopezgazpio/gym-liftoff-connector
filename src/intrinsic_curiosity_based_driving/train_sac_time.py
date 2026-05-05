@@ -216,6 +216,7 @@ for episode in range(last_episode, NUM_EPISODES):
     last_step = {"img": obs, "step": step}
     writer.put(last_step)
     writer.close()
+    continue
     del previous_action
     del reward
     del info
@@ -364,7 +365,7 @@ for episode in range(last_episode, NUM_EPISODES):
         replay_buffer.add(replay_data)
 
 
-    replay_buffer.writer.close()
+
 
 
     torch.cuda.empty_cache()

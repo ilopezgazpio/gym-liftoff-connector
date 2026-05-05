@@ -50,7 +50,7 @@ class LMDBReplayBuffer:
 
                     raw = txn.get(f"{real_idx:08}".encode())
 
-                    _, act, _, done, tel = self.decode(raw)
+                    obs, act, rew, done, tel = self.decode(raw)
 
                     if done > 0:
                         break

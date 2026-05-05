@@ -74,6 +74,11 @@ class CriticSAC_LSTM(nn.Module):
             batch_first=True
         )
 
+        self.fc = nn.Sequential(
+            nn.Linear(2 * hidden_size, hidden_size),
+            nn.ReLU()
+        )
+
         self.q1 = nn.Linear(hidden_size, 1)
         self.q2 = nn.Linear(hidden_size, 1)
 
@@ -90,7 +95,10 @@ class CriticSAC_LSTM(nn.Module):
         lstm_out, _ = self.lstm(lstm_input)  # [batch, seq_len, hidden_size]
         lstm_out_last = lstm_out[:, -1, :]  # solo último step (para Q-target)
 
-        return self.q1(lstm_out_last), self.q2(lstm_out_last)
+        z = torch.cat([z_obs, lstm_out_last], dim = -1)
+        z = self.fc(z)
+
+        return self.q1(z), self.q2(z)
 
 
 # Todo: meter posicion y delta posicion con goal. Mirar chat
@@ -130,7 +138,7 @@ class CriticSAC_GADP(nn.Module): # GADP = Gyro, Attitude, Delta Actions, Positio
         self.q1 = nn.Linear(hidden_size, 1)
         self.q2 = nn.Linear(hidden_size, 1)
 
-    def forward(self, obs, action_seq, telemetry_seq, distances):
+    def forward(self, obs, action_seq, telemetry_seq):
         """
         obs_seq: [batch, seq_len, C, H, W]
         action_seq: [batch, seq_len, action_dim]
@@ -138,10 +146,9 @@ class CriticSAC_GADP(nn.Module): # GADP = Gyro, Attitude, Delta Actions, Positio
         """
         z_obs = self.encoder(obs)  # [batch*seq_len, hidden_size]
 
-        assert telemetry_seq.shape[-1] == self.telemetry_len + self.distances_len
         telemetry, distances = torch.split(telemetry_seq, [self.telemetry_len, self.distances_len], dim = -1)
 
-        lstm_input = torch.cat([action_seq, telemetry_seq], dim=-1)  # [batch, seq_len, hidden_size + action_dim + telemetry_len]
+        lstm_input = torch.cat([action_seq, telemetry], dim=-1)  # [batch, seq_len, hidden_size + action_dim + telemetry_len]
 
         lstm_out, _ = self.lstm(lstm_input)  # [batch, seq_len, hidden_size]
         lstm_out_last = lstm_out[:, -1, :]  # solo último step (para Q-target)
@@ -184,7 +191,7 @@ class ActorSAC_GADP(nn.Module):
             nn.SiLU()
         )
         self.mu_layer = nn.Linear(256 + 3*64, action_dim)
-        self.log_std_layer = nn.Linear(256 + 64, action_dim)
+        self.log_std_layer = nn.Linear(256 + 3*64, action_dim)
 
     def forward(self, obs, prev_action, telemetry, position):
         z_obs = self.encoder(obs)
@@ -262,7 +269,7 @@ def update_sac(actor, critic, critic_target, buffer, actor_opt, critic_opt, batc
 
     return critic_loss.item(), actor_loss.item()
 
-def update_sac_n_steps(actor, critic, critic_target, buffer, actor_opt, critic_opt, batch_size=32, device='cuda', normalize = None, n_steps = 3):
+def update_sac_n_steps(actor, critic, critic_target, buffer, actor_opt, critic_opt, batch_size=32, device='cuda', normalize = None, n_steps = 0):
     (obs, act, rew, done, tel), next_steps_len = buffer.sample(batch_size)
     obs = obs.to(device)
     act = act.to(device)
@@ -270,7 +277,6 @@ def update_sac_n_steps(actor, critic, critic_target, buffer, actor_opt, critic_o
     tel = tel.to(device)
     done = done.to(device)
     seq_len = obs.shape[1]
-
     rewards = rew[:, -n_steps -1:-1]
     gammas = torch.tensor(
         [GAMMA ** i for i in range(n_steps)],
@@ -289,9 +295,9 @@ def update_sac_n_steps(actor, critic, critic_target, buffer, actor_opt, critic_o
         obs = normalize(obs)
 
     with torch.no_grad():
-        next_action, next_log_prob = actor.sample(obs[:, -1], act[:, -2])
+        next_action, next_log_prob = actor.sample(obs[:, -1], act[:, -2], tel[:, -1].squeeze(1))
 
-        next_act_seq = torch.cat([act[-seq_len:-1], next_action.unsqueeze(1)], dim = 1)
+        next_act_seq = torch.cat([act[:, -seq_len:-1], next_action.unsqueeze(1)], dim = 1)
         next_obs_seq = obs[:, -1]
         next_tel_seq = tel[:, -seq_len:]
 
@@ -300,7 +306,7 @@ def update_sac_n_steps(actor, critic, critic_target, buffer, actor_opt, critic_o
 
         target_q = rew_t + GAMMA**n_steps * not_done_n * target_q
 
-    current_q1, current_q2 = critic(obs[:, :seq_len], act[:, :seq_len], tel[:, :seq_len])
+    current_q1, current_q2 = critic(next_obs_seq, act[:, :seq_len], tel[:, :seq_len])
     critic_loss = F.mse_loss(current_q1, target_q) + F.mse_loss(current_q2, target_q)
 
     critic_opt.zero_grad()
@@ -308,9 +314,9 @@ def update_sac_n_steps(actor, critic, critic_target, buffer, actor_opt, critic_o
     critic_opt.step()
 
 
-    new_action, log_prob = actor.sample(obs[:, seq_len], act[:, seq_len - 1])
+    new_action, log_prob = actor.sample(next_obs_seq, act[:, seq_len - 2], tel[:, seq_len-1])
     next_act_seq = torch.cat([act[:, :seq_len-1], new_action.unsqueeze(1)], dim=1)
-    q1_new, q2_new = critic(obs[:, :seq_len], next_act_seq, tel[:, :seq_len])
+    q1_new, q2_new = critic(next_obs_seq, next_act_seq, tel[:, :seq_len])
     actor_loss = (ALPHA * log_prob - torch.min(q1_new, q2_new)).mean()
 
     actor_opt.zero_grad()

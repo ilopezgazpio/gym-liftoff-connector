@@ -49,13 +49,52 @@ def log(step, phase, action, info):
 # RESET
 # =========================
 _, info = env.reset()
-
+max_alt = info["position"][1] + 5
 step = 0
 
 # =========================================================
 # FASE 1: THRUST (kt)
 # =========================================================
 print("Phase 1: thrust identification")
+
+th = 1300
+
+while info["position"][1] < max_alt:
+    action = [th, 1024, 1024, 1024]
+    _, _, _, _, info = env.step(action)
+    log(step, "thrust_init", action, info)
+    step += 1
+    print(info["position"][1])
+
+counter = 100
+i = 0
+Kp = 5  # ajustar
+
+while True:
+
+    vz = info["velocity"][1]
+
+    error = -vz  # queremos vz = 0
+
+    th = th + Kp * error
+
+    #th = np.clip(th, 1000, 2000)
+
+    action = [th, 1024, 1024, 1024]
+
+    _, _, _, _, info = env.step(action)
+
+    log(step, "hover", action, info)
+    step += 1
+
+    print(info["velocity"][1])
+
+while True:
+    action = [th, 1024, 1024, 1024]
+    _, _, _, _, info = env.step(action)
+    log(step, "thrust_hover", action, info)
+    step += 1
+    print("Hover:", info["velocity"][1])
 
 for throttle in range(1200, 2000, 100):
 
@@ -65,7 +104,6 @@ for throttle in range(1200, 2000, 100):
 
         _, _, _, _, info = env.step(action)
         log(step, "thrust", action, info)
-        print(info["motorrpm"])
         step += 1
 
 # =========================================================

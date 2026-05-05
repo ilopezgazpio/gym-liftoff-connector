@@ -69,8 +69,6 @@ df = df[np.abs(df["wz_dot"]) < 100]
 # =========================
 df_t = df[df["phase"] == "thrust"].copy()
 
-# opcional: quitar rotación residual
-df_t = df_t[np.abs(df_t["wz"]) < 1.0]
 
 X_t = df_t["S"].values
 y_t = df_t["T"].values
@@ -99,7 +97,6 @@ plt.legend()
 df_d = df[df["phase"] == "yaw"].copy()
 
 # quitar muestras sin excitación
-df_d = df_d[np.abs(df_d["yaw_term"]) > 1e-3]
 
 X_d = df_d["yaw_term"].values
 y_d = df_d["Mz"].values

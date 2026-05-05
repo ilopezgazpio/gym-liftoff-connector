@@ -125,7 +125,7 @@ class LiftoffWrapRandomPosition(gym.Wrapper):
         self.max_position = max_position
 
     def reset(self, seed = None, options = None):
-        obs, info = self.env.reset()
+        obs, info = self.env.reset(seed = seed, options = options)
         self.starting_position = np.array(info["position"], dtype=np.float32)
         info["position_norm"] = self.get_position_norm(info["position"])
         self.goal_position = self.get_goal_position()
@@ -150,7 +150,9 @@ class LiftoffWrapRandomPosition(gym.Wrapper):
             truncated = True
             reward += 3
         elif not termianted:
-            reward += self.get_reward(info["distance2goal"])
+            pos_rew = self.get_reward(info["distance2goal"])
+            print(pos_rew)
+            reward += pos_rew
 
         self.past_distance = info["distance2goal"]
 
@@ -169,7 +171,7 @@ class LiftoffWrapRandomPosition(gym.Wrapper):
     def get_goal_position(self):
         low = self.starting_position - self.max_position
         high = self.starting_position + self.max_position
-        low[1] = self.starting_position[1] + 1
+        low[1] += 2
         return self.sample(low, high)
 
     def sample(self, low, high):
@@ -178,12 +180,14 @@ class LiftoffWrapRandomPosition(gym.Wrapper):
         ])
 
     def calculate_distance(self, current):
-        vec = (self.goal_position - current) / self.max_position
+        vec = (self.goal_position - current)
         esc = np.linalg.norm(vec)
-
+        vec = vec  / self.max_position
+        esc_norm = np.linalg.norm(vec)
         return {
             "vec": vec,
-            "esc": esc
+            "esc": esc,
+            "esc_norm": esc_norm
         }
 
     def get_reward(self, distance):

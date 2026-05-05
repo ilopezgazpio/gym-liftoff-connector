@@ -175,14 +175,11 @@ class Liftoff(gym.Env):
         info = self._get_info()
         terminated= self.__episode_terminated__(info)
         reward = self._get_reward(terminated)
-        truncated = info["timestamp"] > self.max_episode_time
+        truncated = info["timestamp"] > self.max_episode_time if self.max_episode_time != None else False
 
         if terminated or truncated:
             self._has_reset = False
-        if terminated:
-            info["crash_reason"] = self.crash_detector.crash_reason
-        if truncated:
-            info["crash_reason"] = None
+
 
         return observation, reward, terminated, truncated, info
 
@@ -225,7 +222,7 @@ class Liftoff(gym.Env):
             self.virtual_gamepad.reset()
             pyautogui.press('r')
             time.sleep(2)
-            self.act([0, 1024, 1024, 1024], from_reset=True)
+            self.act([900, 1024, 1024, 1024], from_reset=True)
 
         self.time = 0
         self.past_action = None
