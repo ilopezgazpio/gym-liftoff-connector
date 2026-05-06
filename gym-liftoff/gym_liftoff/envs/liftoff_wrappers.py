@@ -151,7 +151,7 @@ class LiftoffWrapRandomPosition(gym.Wrapper):
             reward += 3
         elif not termianted:
             pos_rew = self.get_reward(info["distance2goal"])
-            print(pos_rew)
+            #print(pos_rew)
             reward += pos_rew
 
         self.past_distance = info["distance2goal"]

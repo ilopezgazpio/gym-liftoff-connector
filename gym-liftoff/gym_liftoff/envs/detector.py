@@ -111,7 +111,6 @@ class CrashDetector:
         vel = np.array(info["velocity"])
         gyro = np.array(info["gyro"])
         R = np.array(info["rotation"])
-        rpm = np.array(info["motorrpm"])
         t = info["timestamp"]
 
         # =========================
@@ -165,13 +164,14 @@ class CrashDetector:
         # =========================
 
 
-        H_acc = 25.0
-        H_yaw = 27.0
+        H_acc = 50.0
+        H_yaw = 35.0
         """
         print("Metricas")
         print(acc_norm, yaw_abs)
         print(H_acc, H_yaw)
         """
+
 
         # =========================
         # DETECCIÓN

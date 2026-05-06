@@ -229,7 +229,7 @@ for episode in range(last_episode, NUM_EPISODES):
     critic = critic.to(device)
     critic_target = critic_target.to(device)
     replay_buffer.writer.open()
-
+    continue
     for _ in range(50):
         critic_loss, actor_loss = update_sac_n_steps(
             actor, critic, critic_target,
