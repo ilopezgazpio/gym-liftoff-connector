@@ -63,7 +63,8 @@ class Liftoff(gym.Env):
 
         self.sock = init_udp_socket()
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 256)
-        print("Actual Size of the socket: ", self.sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF))
+        self.telemetry_socket_len = self.sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+        print("Actual Size of the socket: ", self.telemetry_socket_len)
         self.crash_detector = CrashDetector()
 
         self.telemetry_path = Path.home() / ".config/unity3d" / "LuGus Studios" / "Liftoff" / "TelemetryConfiguration.json"
@@ -159,8 +160,6 @@ class Liftoff(gym.Env):
     def step(self, action):
         if not self._has_reset:
             raise gym.error.ResetNeeded("Cannot call env.step() before calling env.reset()")
-    
-        info = {}
 
         '''Send action to liftoff through virtual gamepad'''
         logger.info("Action performed: {}".format(action))
@@ -183,33 +182,6 @@ class Liftoff(gym.Env):
 
         return observation, reward, terminated, truncated, info
 
-
-    def reset_deprecated(self, seed=None, options=None):
-        super().reset(seed=seed)  # sets Gymnasium RNG
-        self._has_reset = True
-
-        if hasattr(self, "resetting") and self.resetting:
-            # already called from wrapper, skip duplication
-            pass
-        else:
-            self.resetting = True
-            self.virtual_gamepad.reset()
-            pyautogui.press('r')
-            time.sleep(1.5)
-            self.virtual_gamepad.reset()
-            self.act([900, 1024, 1024, 1024], from_reset=True)
-            time.sleep(1)
-
-        self.time = 0
-        self.past_action = None
-        self.state = self.video_sampler.sample(region=(1280, 0, 1920, 1080))
-        observation = self.observation()
-        done = self.__episode_terminated__(info)
-        self.crash_detector.reset()
-        logger.info("Reward obtained: {}".format(reward))
-
-        return observation, reward, done, False, info
-
     def reset(self, seed = None, options = None):
         super().reset(seed=seed)
         self._has_reset = True
@@ -229,6 +201,7 @@ class Liftoff(gym.Env):
         self.state = self.video_sampler.sample()
         observation = self.observation()
         self.crash_detector.reset()
+        _ = self._get_info()
         info = self._get_info()
         return observation, info
 
@@ -259,7 +232,7 @@ class Liftoff(gym.Env):
 
     def read_telemetry(self):
         latest = None
-        _ = self.sock.recvfrom(2304)
+        _ = self.sock.recvfrom(self.telemetry_socket_len)
         while True:
             try:
                 data, _ = self.sock.recvfrom(128)  # leer todo lo disponible
@@ -289,25 +262,6 @@ class Liftoff(gym.Env):
         return telemetry
 
 
-
-        """
-        unpacked = struct.unpack('18f', latest[:self.telemetry_len])
-        timestamp = unpacked[0]
-        pos = np.array(unpacked[1:4])
-        att = np.array(unpacked[4:8])
-        vel = np.array(unpacked[8:11])
-        gyro = np.array(unpacked[11:14])
-        inp = np.array(unpacked[14:18])
-
-        return {
-            'timestamp': timestamp,
-            'position': pos,
-            'attitude': att,
-            'velocity': vel,
-            'gyro': gyro,
-            'input': inp
-        }
-        """
 
 
     def quaternion_to_rotation_matrix(self, attitude):

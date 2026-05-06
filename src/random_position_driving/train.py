@@ -151,7 +151,6 @@ for episode in range(last_episode, NUM_EPISODES):
         info["goal_norm"],
     ])
 
-    print(basic_tel.shape, pos_tel.shape)
 
     telemetry = np.concatenate([
         basic_tel,
@@ -164,8 +163,6 @@ for episode in range(last_episode, NUM_EPISODES):
         obs_tensor = torch.from_numpy(obs).float() / 255.0
         obs_tensor_norm = normalize(obs_tensor)
         obs_tensor_norm = obs_tensor_norm.unsqueeze(0)
-
-
 
         action, log_prob = actor.sample(obs_tensor_norm.to(device), previous_action, torch.tensor(telemetry, dtype = torch.float32).unsqueeze(0).to(device))
 
@@ -219,7 +216,7 @@ for episode in range(last_episode, NUM_EPISODES):
 
     torch.cuda.empty_cache()
 
-    print(terminated, truncated)
+    print(f"Crashed: {terminated}, Finished: {truncated}")
     replay_buffer.writer.close()
     print(f"Episode finished in {step} steps, total env reward: {sum(env_rewards):.3f}")
 
@@ -229,7 +226,6 @@ for episode in range(last_episode, NUM_EPISODES):
     critic = critic.to(device)
     critic_target = critic_target.to(device)
     replay_buffer.writer.open()
-    continue
     for _ in range(50):
         critic_loss, actor_loss = update_sac_n_steps(
             actor, critic, critic_target,

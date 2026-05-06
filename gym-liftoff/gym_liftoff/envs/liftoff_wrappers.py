@@ -127,21 +127,24 @@ class LiftoffWrapRandomPosition(gym.Wrapper):
     def reset(self, seed = None, options = None):
         obs, info = self.env.reset(seed = seed, options = options)
         self.starting_position = np.array(info["position"], dtype=np.float32)
+        #print([round(x, 2) for x in info["position"]])
         info["position_norm"] = self.get_position_norm(info["position"])
+
         self.goal_position = self.get_goal_position()
         self.norm_goal_position = self.get_position_norm(self.goal_position)
+
         info["goal"] = self.goal_position
         info["goal_norm"] = self.norm_goal_position
         info["distance2goal"] = self.past_distance =self.calculate_distance(self.starting_position)
+
         return obs, info
 
-    def get_position_norm(self, position):
-        return (position -self.starting_position) / self.max_position
     def step(self, action):
         obs, reward, termianted, truncated, info = self.env.step(action)
 
         info["goal"] = self.goal_position
         info["distance2goal"] = self.calculate_distance(info["position"])
+        #print([round(x, 2) for x in info["position"]])
 
         info["goal_norm"] = self.norm_goal_position
         info["position_norm"] = self.get_position_norm(info["position"])
@@ -151,12 +154,16 @@ class LiftoffWrapRandomPosition(gym.Wrapper):
             reward += 3
         elif not termianted:
             pos_rew = self.get_reward(info["distance2goal"])
-            #print(pos_rew)
+            print(pos_rew)
             reward += pos_rew
 
         self.past_distance = info["distance2goal"]
 
         return obs, reward, termianted, truncated, info
+
+    def get_position_norm(self, position):
+        return (position -self.starting_position) / self.max_position
+
 
     def set_new_goal(self, goal = None):
         if goal is None:
@@ -191,6 +198,7 @@ class LiftoffWrapRandomPosition(gym.Wrapper):
         }
 
     def get_reward(self, distance):
+        #print(self.past_distance["esc"], distance["esc"])
         reward = self.past_distance["esc"] - distance["esc"]
         return self.ponderation*reward
 
