@@ -7,7 +7,7 @@ import numpy as np
 from collections import deque
 
 class LMDBReplayBuffer:
-    def __init__(self, path, obs_shape, act_size, tel_size, max_size = 40000,seq_len = 10, n_steps = 1, map_size=int(1e12), device='cuda', padding = True):
+    def __init__(self, path, obs_shape, act_size, tel_size, max_size = 40000,seq_len = 10, n_steps = 3, map_size=int(1e12), device='cuda', padding = True):
         self.seq_len = seq_len
         self.n_steps = n_steps
         self.device = device
@@ -41,7 +41,6 @@ class LMDBReplayBuffer:
         with self.writer.env.begin() as txn:
             for i in range(batch_size):
                 idx = random.randint(0, max_valid_idx - 1)  # -2 para asegurar next
-                seq_start = idx - self.seq_len + 1
 
                 future_len = 0
 

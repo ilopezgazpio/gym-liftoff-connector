@@ -269,15 +269,17 @@ def update_sac(actor, critic, critic_target, buffer, actor_opt, critic_opt, batc
 
     return critic_loss.item(), actor_loss.item()
 
-def update_sac_n_steps(actor, critic, critic_target, buffer, actor_opt, critic_opt, batch_size=32, device='cuda', normalize = None, n_steps = 0):
+def update_sac_n_steps(actor, critic, critic_target, buffer, actor_opt, critic_opt, batch_size=32, device='cuda', normalize = None, n_steps = 3, seq_len = 5):
     (obs, act, rew, done, tel), next_steps_len = buffer.sample(batch_size)
     obs = obs.to(device)
     act = act.to(device)
     rew = rew.to(device)
     tel = tel.to(device)
     done = done.to(device)
-    seq_len = obs.shape[1]
-    rewards = rew[:, -n_steps -1:-1]
+
+    t = seq_len - 1
+
+    rewards = rew[:, t : t + n_steps]
     gammas = torch.tensor(
         [GAMMA ** i for i in range(n_steps)],
         device=device
@@ -285,28 +287,31 @@ def update_sac_n_steps(actor, critic, critic_target, buffer, actor_opt, critic_o
 
     rew_t = (rewards * gammas).sum(dim=1, keepdim=True)
 
-    next_done = done[:, -n_steps - 1:]
-
-    done_mask = next_done.any(dim=1, keepdim=True).float()
+    done_seq = done[:, t: t + n_steps]
+    done_mask = done_seq.any(dim=1, keepdim=True).float()
     done_mask = done_mask.squeeze(-1)
     not_done_n = 1.0 - done_mask
 
     if normalize is not None:
         obs = normalize(obs)
 
+    s_t = obs[:, t]
+    s_tn = obs[:, t + n_steps]
+
     with torch.no_grad():
-        next_action, next_log_prob = actor.sample(obs[:, -1], act[:, -2], tel[:, -1].squeeze(1))
+        next_action, next_log_prob = actor.sample(s_tn, act[:, t + n_steps - 1], tel[:, t + n_steps].squeeze(1))
 
         next_act_seq = torch.cat([act[:, -seq_len:-1], next_action.unsqueeze(1)], dim = 1)
-        next_obs_seq = obs[:, -1]
+
         next_tel_seq = tel[:, -seq_len:]
 
-        target_q1, target_q2 = critic_target(next_obs_seq, next_act_seq, next_tel_seq)
+        target_q1, target_q2 = critic_target(s_tn, next_act_seq, next_tel_seq)
         target_q = torch.min(target_q1, target_q2) - ALPHA * next_log_prob
 
         target_q = rew_t + GAMMA**n_steps * not_done_n * target_q
 
-    current_q1, current_q2 = critic(next_obs_seq, act[:, :seq_len], tel[:, :seq_len])
+
+    current_q1, current_q2 = critic(s_t, act[:, :seq_len], tel[:, :seq_len])
     critic_loss = F.mse_loss(current_q1, target_q) + F.mse_loss(current_q2, target_q)
 
     critic_opt.zero_grad()
@@ -314,9 +319,12 @@ def update_sac_n_steps(actor, critic, critic_target, buffer, actor_opt, critic_o
     critic_opt.step()
 
 
-    new_action, log_prob = actor.sample(next_obs_seq, act[:, seq_len - 2], tel[:, seq_len-1])
-    next_act_seq = torch.cat([act[:, :seq_len-1], new_action.unsqueeze(1)], dim=1)
-    q1_new, q2_new = critic(next_obs_seq, next_act_seq, tel[:, :seq_len])
+    new_action, log_prob = actor.sample(s_t, act[:, t - 1], tel[:, t])
+
+    act_seq = torch.cat([act[:, t - seq_len + 1:t], new_action.unsqueeze(1)], dim = 1)
+    tel_seq = tel[:, t - seq_len + 1: t + 1]
+
+    q1_new, q2_new = critic(s_t, act_seq, tel_seq)
     actor_loss = (ALPHA * log_prob - torch.min(q1_new, q2_new)).mean()
 
     actor_opt.zero_grad()
