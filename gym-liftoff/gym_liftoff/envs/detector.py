@@ -134,43 +134,13 @@ class CrashDetector:
 
         acc_imu = (vel - self.prev_velocity) / dt
 
-        # =========================
-        # RPM → rad/s
-        # =========================
-        omega = rpm * (2 * np.pi / 60)
 
-        # =========================
-        # THRUST
-        # =========================
-        S = np.sum(omega**2)
-        T = self.kt * S
-
-        # =========================
-        # ACELERACION ESPERADA
-        # =========================
-        g = np.array([0, -9.81, 0])  # Unity
-
-        thrust_body = np.array([0, T, 0])
-        thrust_world = R @ thrust_body
-
-        a_expected = thrust_world / self.m + g
-
-        # plano horizontal (Unity: X,Z)
-        a_exy = np.array([a_expected[0], a_expected[2]])
-        a_imu_xy = np.array([acc_imu[0], acc_imu[2]])
-
-        # =========================
-        # RESIDUALES
-        # =========================
-        delta_a = a_exy - a_imu_xy
-        #delta_w = omega_e - omega_imu
 
         # =========================
         # FILTRO
         # =========================
-        self.filtered_acc = (1 - beta) * self.filtered_acc + beta * delta_a
 
-        acc_norm = np.linalg.norm(self.filtered_acc)
+        acc_norm = np.linalg.norm(acc_imu)
         omega_imu = gyro[2]
 
         if hasattr(self, "prev_omega"):
@@ -194,17 +164,14 @@ class CrashDetector:
         # THRESHOLDS
         # =========================
 
-        if len(self.acc_residuals) < self.W:
-            return False
-        else:
-            k_acc = np.mean(np.diff(np.array(self.acc_residuals)) ** 2)
-            H_acc = k_acc * np.linalg.norm(a_exy) + self.c_acc
-            H_yaw = 27.0
-            """
-            print("Metricas")
-            print(acc_norm, yaw_abs)
-            print(H_acc, H_yaw)
-            """
+
+        H_acc = 25.0
+        H_yaw = 27.0
+        """
+        print("Metricas")
+        print(acc_norm, yaw_abs)
+        print(H_acc, H_yaw)
+        """
 
         # =========================
         # DETECCIÓN
