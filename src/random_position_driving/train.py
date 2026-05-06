@@ -101,7 +101,7 @@ if checkpoint:
 # Initialize Worker and LMDB
 # =================
 
-replay_buffer = LMDBReplayBuffer(path = str(replay_buffer_path), obs_shape= env.observation_space.shape, act_size= ACTION_DIM, tel_size=27)
+replay_buffer = LMDBReplayBuffer(path = str(replay_buffer_path), obs_shape= env.observation_space.shape, act_size= ACTION_DIM, tel_size=27, n_steps=3, seq_len=5)
 replay_buffer.writer.clear_database()
 # =================
 # Image Normalization
