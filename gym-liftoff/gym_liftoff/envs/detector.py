@@ -121,6 +121,9 @@ class CrashDetector:
             self.prev_velocity = vel
             return False
 
+        if self.prev_timestamp > t:
+            return True
+
         dt = t - self.prev_timestamp
         if dt <= 0:
             return False
@@ -156,9 +159,6 @@ class CrashDetector:
         # =========================
         self.acc_residuals.append(acc_norm)
 
-
-
-
         # =========================
         # THRESHOLDS
         # =========================
@@ -179,8 +179,7 @@ class CrashDetector:
 
         crash_acc = acc_norm > H_acc
         crash_yaw = yaw_abs > H_yaw
-
-        self.crash = crash_acc or crash_yaw
+        self.crash = crash_acc or crash_yaw or t < self.prev_timestamp
 
         # =========================
         # UPDATE

@@ -206,12 +206,6 @@ for episode in range(last_episode, NUM_EPISODES):
 
         obs = next_obs
 
-        if done:
-            reached_goals += 1
-            if reached_goals < num_goals and not terminated:
-                env.set_new_goal()
-                done = False
-
         step += 1
 
     torch.cuda.empty_cache()

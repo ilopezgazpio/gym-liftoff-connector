@@ -43,14 +43,11 @@ class LMDBReplayBuffer:
                 idx = random.randint(0, max_valid_idx - 1)  # -2 para asegurar next
 
                 future_len = 0
-
                 for t in range(self.seq_len - 1):
                     real_idx = (idx - t - 1) % max_valid_idx
-
                     raw = txn.get(f"{real_idx:08}".encode())
 
                     obs, act, rew, done, tel = self.decode(raw)
-
                     if done > 0:
                         break
                     #print("done: ",done)
@@ -75,12 +72,11 @@ class LMDBReplayBuffer:
 
                 next_done = done
                 if next_done < 1:
-                    for j in range(self.seq_len, self.seq_len + self.n_steps - 1):
+                    for j in range(self.n_steps - 1):
                         key = (idx + 1 + j) % max_valid_idx
                         raw_next = txn.get(f"{key:08}".encode())
                         next_obs, next_act, next_rew, next_done, next_tel = self.decode(raw_next)
-                        if next_done > 0:
-                            break
+
                         obs_batch[i, j] = next_obs
                         act_batch[i, j] = next_act
                         rew_batch[i, j] = next_rew
@@ -88,10 +84,11 @@ class LMDBReplayBuffer:
                         tel_batch[i, j] = next_tel
 
                         future_len += 1
+                        if next_done > 0:
+                            break
 
                     if next_done < 1:
                         raw_next = txn.get(f"{((idx + self.n_steps) % max_valid_idx):08}".encode())
-
                         next_obs, next_act, next_rew, next_done, next_tel = self.decode(raw_next)
                         j = self.seq_len + self.n_steps - 1
                         obs_batch[i, j] = next_obs
@@ -120,8 +117,8 @@ class LMDBReplayBuffer:
         action = data[self.obs_size:self.obs_size + self.act_size]
         telemetry = data[self.obs_size + self.act_size:self.obs_size + self.act_size + self.tel_size]
 
-        reward = data[-2]
-        done = data[-1]
+        reward = data[-3]
+        done = data[-2]
 
         return obs, action, reward, done, telemetry
 
