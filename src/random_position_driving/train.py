@@ -166,9 +166,11 @@ for episode in range(last_episode, NUM_EPISODES):
 
         action, log_prob = actor.sample(obs_tensor_norm.to(device), previous_action, torch.tensor(telemetry, dtype = torch.float32).unsqueeze(0).to(device))
 
+        print("Reward")
+
         next_obs, reward, terminated, truncated, info = env.step(action.squeeze(0).detach().cpu().numpy())
         done = terminated or truncated
-
+        print("Total Reward: ", reward)
         t = step
 
         replay_data = np.concatenate([

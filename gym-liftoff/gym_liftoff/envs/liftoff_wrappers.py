@@ -31,7 +31,9 @@ class LiftoffWrapStability(gym.Wrapper):
         #print(f"Past Action: {self.past_actions}, Action: {action}, Delta: {delta_action}")
         self.past_actions = action.copy()
 
-        reward = reward + self.ponderation * self.get_reward(delta_action)
+        act_reward = self.ponderation * self.get_reward(delta_action)
+        print("Action Reward: ", act_reward)
+        reward = reward + act_reward
         return obs, reward, terminated, truncated, info
 
     def get_reward(self, delta_action):
@@ -85,12 +87,13 @@ class LiftoffWrapGyro(gym.Wrapper):
         self.max_gyro = max_gyro
     def reset(self, seed = None, options = None):
         obs, info = self.env.reset(seed = seed, options = options)
-        info["gyro"] = info["gyro"] * np.pi / 180
         return obs, info
     def step(self, action):
         obs, reward, termianted, truncated, info = self.env.step(action)
-        info["gyro"] = info["gyro"] * np.pi / 180
-        reward += self.get_reward(info["gyro"])
+        if not termianted:
+            gyro_rew = self.get_reward(info["gyro"])
+            print("Gyro Reward: ", gyro_rew)
+            reward += gyro_rew
         return obs, reward, termianted, truncated, info
 
     def get_reward(self, gyro):
@@ -154,7 +157,7 @@ class LiftoffWrapRandomPosition(gym.Wrapper):
             reward += 3
         elif not termianted:
             pos_rew = self.get_reward(info["distance2goal"])
-            print(pos_rew)
+            print("Position Reward:", pos_rew)
             reward += pos_rew
 
         self.past_distance = info["distance2goal"]
@@ -199,7 +202,7 @@ class LiftoffWrapRandomPosition(gym.Wrapper):
 
     def get_reward(self, distance):
         #print(self.past_distance["esc"], distance["esc"])
-        reward = self.past_distance["esc"] - distance["esc"]
+        reward = self.past_distance["esc_norm"] - distance["esc_norm"]
         return self.ponderation*reward
 
 class LiftoffWrapObservation(gym.ObservationWrapper):
