@@ -47,7 +47,7 @@ env = LiftoffWrapRandomPosition(env)
 print("Observation space:", env.observation_space)
 print("Action space:", env.action_space)
 
-NUM_EPISODES = 10001
+NUM_EPISODES = 40001
 ACTION_DIM = 4
 BATCH_SIZE = 32
 
@@ -102,7 +102,7 @@ if checkpoint:
 # =================
 
 replay_buffer = LMDBReplayBuffer(path = str(replay_buffer_path), obs_shape= env.observation_space.shape, act_size= ACTION_DIM, tel_size=27, n_steps=3, seq_len=5)
-replay_buffer.writer.clear_database()
+#replay_buffer.writer.clear_database()
 # =================
 # Image Normalization
 # =================
@@ -166,11 +166,8 @@ for episode in range(last_episode, NUM_EPISODES):
 
         action, log_prob = actor.sample(obs_tensor_norm.to(device), previous_action, torch.tensor(telemetry, dtype = torch.float32).unsqueeze(0).to(device))
 
-        print("Reward")
-
         next_obs, reward, terminated, truncated, info = env.step(action.squeeze(0).detach().cpu().numpy())
         done = terminated or truncated
-        print("Total Reward: ", reward)
         t = step
 
         replay_data = np.concatenate([
@@ -257,7 +254,7 @@ for episode in range(last_episode, NUM_EPISODES):
     gc.collect()
     torch.cuda.empty_cache()
 
-    if episode % 100 == 0 and episode != 0:
+    if episode % 500 == 0 and episode != 0:
         all_models = {
             "models": {
                 "actor": actor.state_dict(),

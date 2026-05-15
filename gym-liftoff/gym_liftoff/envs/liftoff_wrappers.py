@@ -5,10 +5,10 @@ import cv2
 from pathlib import Path
 import json
 import math
-
+import random
 
 class LiftoffWrapStability(gym.Wrapper):
-    def __init__(self, env, ponderation = 1.0, delta_margin = True):
+    def __init__(self, env, ponderation = 0.3, delta_margin = True):
         super(LiftoffWrapStability, self).__init__(env)
         self.past_actions = None
         self.ponderation = ponderation
@@ -32,7 +32,7 @@ class LiftoffWrapStability(gym.Wrapper):
         self.past_actions = action.copy()
 
         act_reward = self.ponderation * self.get_reward(delta_action)
-        print("Action Reward: ", act_reward)
+        #print("Action Reward: ", act_reward)
         reward = reward + act_reward
         return obs, reward, terminated, truncated, info
 
@@ -81,7 +81,7 @@ class LiftoffWrapLogTime(gym.Wrapper):
         return obs, reward, terminated, truncated, info
 
 class LiftoffWrapGyro(gym.Wrapper):
-    def __init__(self, env, ponderation = 1, max_gyro = 10):
+    def __init__(self, env, ponderation = 0.3, max_gyro = 10):
         super(LiftoffWrapGyro, self).__init__(env)
         self.ponderation = ponderation
         self.max_gyro = max_gyro
@@ -92,16 +92,17 @@ class LiftoffWrapGyro(gym.Wrapper):
         obs, reward, termianted, truncated, info = self.env.step(action)
         if not termianted:
             gyro_rew = self.get_reward(info["gyro"])
-            print("Gyro Reward: ", gyro_rew)
+            #print("Gyro Reward: ", gyro_rew)
             reward += gyro_rew
         return obs, reward, termianted, truncated, info
 
     def get_reward(self, gyro):
         gyro_norm = np.linalg.norm(gyro) / self.max_gyro
+        #print("gyro_norm:", gyro_norm)
         return - self.ponderation*(gyro_norm**2)
 
 class LiftoffWrapAttitude(gym.Wrapper):
-    def __init__(self, env, ponderation = 1.0):
+    def __init__(self, env, ponderation = 0.1):
         super(LiftoffWrapAttitude, self).__init__(env)
         self.ponderation = ponderation
     def step(self, action):
@@ -120,7 +121,7 @@ class LiftoffWrapAttitude(gym.Wrapper):
 
 
 class LiftoffWrapRandomPosition(gym.Wrapper):
-    def __init__(self, env, ponderation = 10.0, max_position = [100, 30, 100]):
+    def __init__(self, env, ponderation = 4.0, max_position = [30, 10, 30]):
         super(LiftoffWrapRandomPosition, self).__init__(env)
         self.goal_position = None
         self.ponderation = ponderation
@@ -151,13 +152,15 @@ class LiftoffWrapRandomPosition(gym.Wrapper):
 
         info["goal_norm"] = self.norm_goal_position
         info["position_norm"] = self.get_position_norm(info["position"])
-
-        if info["distance2goal"]["esc"] < 1.0 and not termianted:
+        #if random.random() < 1:
+            #print(info["goal_norm"], info["position_norm"])
+            #print("Distance: ", info["distance2goal"]["esc"])
+        if info["distance2goal"]["esc"] < 5.0 and not termianted:
             truncated = True
             reward += 3
         elif not termianted:
             pos_rew = self.get_reward(info["distance2goal"])
-            print("Position Reward:", pos_rew)
+            #print("Position Reward:", pos_rew)
             reward += pos_rew
 
         self.past_distance = info["distance2goal"]
@@ -202,7 +205,7 @@ class LiftoffWrapRandomPosition(gym.Wrapper):
 
     def get_reward(self, distance):
         #print(self.past_distance["esc"], distance["esc"])
-        reward = self.past_distance["esc_norm"] - distance["esc_norm"]
+        reward = self.past_distance["esc"] - distance["esc"]
         return self.ponderation*reward
 
 class LiftoffWrapObservation(gym.ObservationWrapper):

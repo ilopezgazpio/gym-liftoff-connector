@@ -306,12 +306,13 @@ def update_sac_n_steps(actor, critic, critic_target, buffer, actor_opt, critic_o
         next_tel_seq = tel[:, -seq_len:]
 
         target_q1, target_q2 = critic_target(s_tn, next_act_seq, next_tel_seq)
-        target_q = torch.min(target_q1, target_q2) - ALPHA * next_log_prob
-
-        target_q = rew_t + GAMMA**n_steps * not_done_n * target_q
+        target_q = torch.min(target_q1, target_q2).squeeze(-1) - ALPHA * next_log_prob
+        target_q = rew_t.squeeze(-1) + GAMMA**n_steps * not_done_n * target_q
 
 
     current_q1, current_q2 = critic(s_t, act[:, :seq_len], tel[:, :seq_len])
+    current_q1 = current_q1.squeeze(-1)
+    current_q2 = current_q2.squeeze(-1)
     critic_loss = F.mse_loss(current_q1, target_q) + F.mse_loss(current_q2, target_q)
 
     critic_opt.zero_grad()
@@ -325,6 +326,8 @@ def update_sac_n_steps(actor, critic, critic_target, buffer, actor_opt, critic_o
     tel_seq = tel[:, t - seq_len + 1: t + 1]
 
     q1_new, q2_new = critic(s_t, act_seq, tel_seq)
+    q1_new = q1_new.squeeze(-1)
+    q2_new = q2_new.squeeze(-1)
     actor_loss = (ALPHA * log_prob - torch.min(q1_new, q2_new)).mean()
 
     actor_opt.zero_grad()
