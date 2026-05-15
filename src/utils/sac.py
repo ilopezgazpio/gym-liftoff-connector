@@ -10,7 +10,7 @@ LOG_STD_MIN = -20
 LOG_STD_MAX = 1
 EPS = 1e-6  # Action clipping
 TAU = 0.005  # Target update
-GAMMA = 0.99  # Discount
+GAMMA = 0.97  # Discount
 ALPHA = 0.1    # Entropy coefficient
 
 class ActorSAC(nn.Module):
@@ -269,7 +269,7 @@ def update_sac(actor, critic, critic_target, buffer, actor_opt, critic_opt, batc
 
     return critic_loss.item(), actor_loss.item()
 
-def update_sac_n_steps(actor, critic, critic_target, buffer, actor_opt, critic_opt, batch_size=32, device='cuda', normalize = None, n_steps = 3, seq_len = 5):
+def update_sac_n_steps(actor, critic, critic_target, buffer, actor_opt, critic_opt, batch_size=32, device='cuda', normalize = None, n_steps = 2, seq_len = 5):
     (obs, act, rew, done, tel), next_steps_len = buffer.sample(batch_size)
     obs = obs.to(device)
     act = act.to(device)
@@ -308,6 +308,7 @@ def update_sac_n_steps(actor, critic, critic_target, buffer, actor_opt, critic_o
         target_q1, target_q2 = critic_target(s_tn, next_act_seq, next_tel_seq)
         target_q = torch.min(target_q1, target_q2).squeeze(-1) - ALPHA * next_log_prob
         target_q = rew_t.squeeze(-1) + GAMMA**n_steps * not_done_n * target_q
+        target_q = torch.clamp(target_q, -50, 50)
 
 
     current_q1, current_q2 = critic(s_t, act[:, :seq_len], tel[:, :seq_len])
@@ -317,6 +318,7 @@ def update_sac_n_steps(actor, critic, critic_target, buffer, actor_opt, critic_o
 
     critic_opt.zero_grad()
     critic_loss.backward()
+    torch.nn.utils.clip_grad_norm_(critic.parameters(), 1.0)
     critic_opt.step()
 
 
@@ -332,6 +334,7 @@ def update_sac_n_steps(actor, critic, critic_target, buffer, actor_opt, critic_o
 
     actor_opt.zero_grad()
     actor_loss.backward()
+    torch.nn.utils.clip_grad_norm_(actor.parameters(), 1.0)
     actor_opt.step()
 
     for target_param, param in zip(critic_target.parameters(), critic.parameters()):
