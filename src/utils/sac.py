@@ -217,6 +217,68 @@ class ActorSAC_GADP(nn.Module):
 
         return action, log_prob
 
+class Actor_Hovering(nn.Module):
+    def __init__(self, telemetry_len, action_dim):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(telemetry_len + action_dim, 512),
+            nn.LeakyReLU(0.1),
+            nn.Linear(512, 512),
+            nn.LeakyReLU(0.1),
+            nn.Linear(512, 256),
+            nn.LeakyReLU(0.1),
+            nn.Linear(256, 256),
+            nn.LeakyReLU(0.1)
+        )
+        self.mu_layer = nn.Linear(256, action_dim)
+        self.log_std_layer = nn.Linear(256, action_dim)
+    def forward(self, x):
+        z = self.net(x)
+        mu = self.mu_layer(z)
+        log_std = torch.clamp(self.log_std_layer(z), LOG_STD_MIN, LOG_STD_MAX)
+        std = log_std.exp()
+        return mu, std
+
+    def sample(self, obs, prev_action, telemetry):
+        z = torch.cat([prev_action, telemetry], dim = -1)
+        mu, std = self.forward(z)
+
+        base_dist = Normal(mu, std)
+        dist = TransformedDistribution(base_dist, [TanhTransform()])
+
+        action = dist.rsample()
+        action = torch.clamp(action, -1 + EPS, 1 - EPS)
+        log_prob = dist.log_prob(action).sum(-1)
+
+        return action, log_prob
+
+class Critic_Hovering(nn.Module):
+    def __init__(self, telemetry_len, action_dim):
+        super().__init__()
+
+        self.action_dim = action_dim
+        self.telemetry_len = telemetry_len
+
+        self.net = nn.Sequential(
+            nn.Linear(telemetry_len + 2*action_dim, 512),
+            nn.LeakyReLU(0.1),
+            nn.Linear(512, 512),
+            nn.LeakyReLU(0.1),
+            nn.Linear(512, 256),
+            nn.LeakyReLU(0.1),
+            nn.Linear(256, 256),
+            nn.LeakyReLU(0.1)
+        )
+        self.q1 = nn.Linear(256, 1)
+        self.q2 = nn.Linear(256, 1)
+
+    def forward(self, obs, actions, telemetry):
+        actions_flat = actions.view(actions.shape[0], 2*self.action_dim)
+        x = torch.cat([actions_flat, telemetry], dim = -1)
+        z = self.fc(x)
+
+        return self.q1(z), self.q2(z)
+
 
 def update_sac(actor, critic, critic_target, buffer, actor_opt, critic_opt, batch_size=32, device='cuda', normalize = None):
     obs, act, rew, done, tel, next_obs, next_tel = buffer.sample(batch_size)
@@ -328,6 +390,73 @@ def update_sac_n_steps(actor, critic, critic_target, buffer, actor_opt, critic_o
     tel_seq = tel[:, t - seq_len + 1: t + 1]
 
     q1_new, q2_new = critic(s_t, act_seq, tel_seq)
+    q1_new = q1_new.squeeze(-1)
+    q2_new = q2_new.squeeze(-1)
+    actor_loss = (ALPHA * log_prob - torch.min(q1_new, q2_new)).mean()
+
+    actor_opt.zero_grad()
+    actor_loss.backward()
+    torch.nn.utils.clip_grad_norm_(actor.parameters(), 1.0)
+    actor_opt.step()
+
+    for target_param, param in zip(critic_target.parameters(), critic.parameters()):
+        target_param.data.copy_(TAU * param.data + (1 - TAU) * target_param.data)
+
+    return critic_loss.item(), actor_loss.item()
+
+def update_sac_hovering(actor, critic, critic_target, buffer, actor_opt, critic_opt, batch_size=32, device='cuda', n_steps = 2, seq_len = 2):
+    (obs, act, rew, done, tel), next_steps_len = buffer.sample(batch_size)
+    act = act.to(device)
+    rew = rew.to(device)
+    tel = tel.to(device)
+    done = done.to(device)
+
+    t = seq_len - 1
+
+    rewards = rew[:, t : t + n_steps-1]
+    gammas = torch.tensor(
+        [GAMMA ** i for i in range(n_steps)],
+        device=device
+    ).unsqueeze(0)
+
+    rew_t = (rewards * gammas).sum(dim=1, keepdim=True)
+
+    done_seq = done[:, t: t + n_steps]
+    done_mask = done_seq.any(dim=1, keepdim=True).float()
+    done_mask = done_mask.squeeze(-1)
+    not_done_n = 1.0 - done_mask
+
+
+    with torch.no_grad():
+        next_action, next_log_prob = actor.sample(act[:, t + n_steps - 1], tel[:, t + n_steps].squeeze(1))
+
+        next_act_seq = torch.cat([act[:, -seq_len:-1], next_action.unsqueeze(1)], dim = 1)
+
+        next_tel_seq = tel[:, -seq_len:]
+
+        target_q1, target_q2 = critic_target(next_act_seq, next_tel_seq)
+        target_q = torch.min(target_q1, target_q2).squeeze(-1) - ALPHA * next_log_prob
+        target_q = rew_t.squeeze(-1) + GAMMA**n_steps * not_done_n * target_q
+        target_q = torch.clamp(target_q, -50, 50)
+
+
+    current_q1, current_q2 = critic(act[:, :seq_len], tel[:, :seq_len])
+    current_q1 = current_q1.squeeze(-1)
+    current_q2 = current_q2.squeeze(-1)
+    critic_loss = F.mse_loss(current_q1, target_q) + F.mse_loss(current_q2, target_q)
+
+    critic_opt.zero_grad()
+    critic_loss.backward()
+    torch.nn.utils.clip_grad_norm_(critic.parameters(), 1.0)
+    critic_opt.step()
+
+
+    new_action, log_prob = actor.sample(act[:, t - 1], tel[:, t])
+
+    act_seq = torch.cat([act[:, t - seq_len + 1:t], new_action.unsqueeze(1)], dim = 1)
+    tel_seq = tel[:, t - seq_len + 1: t + 1]
+
+    q1_new, q2_new = critic(act_seq, tel_seq)
     q1_new = q1_new.squeeze(-1)
     q2_new = q2_new.squeeze(-1)
     actor_loss = (ALPHA * log_prob - torch.min(q1_new, q2_new)).mean()
