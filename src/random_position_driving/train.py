@@ -47,7 +47,7 @@ env = LiftoffWrapRandomPosition(env)
 print("Observation space:", env.observation_space)
 print("Action space:", env.action_space)
 
-NUM_EPISODES = 40001
+NUM_EPISODES = 100001
 ACTION_DIM = 4
 BATCH_SIZE = 32
 
@@ -232,7 +232,7 @@ for episode in range(last_episode, NUM_EPISODES):
     episode_log = {
         "episode": episode,
         "steps": step,
-        "env_reward_total": float(sum(env_rewards_list)),
+        "env_reward_total": float(sum(env_rewards)),
         "actor_loss_mean": float(torch.tensor(actor_losses_list).mean()),
         "actor_loss_std": float(torch.tensor(actor_losses_list).std(unbiased=False)),
         "critic_loss_mean": float(torch.tensor(critic_losses_list).mean()),

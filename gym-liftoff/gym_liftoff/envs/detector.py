@@ -57,6 +57,7 @@ class CrashDetectorDeprecated:
 
 import numpy as np
 from collections import deque
+import pandas as pd
 
 class CrashDetector:
     def __init__(
@@ -85,6 +86,9 @@ class CrashDetector:
         self.acc_residuals = deque(maxlen=self.W)
         self.yaw_residuals = deque(maxlen=self.W)
 
+        self.acc_history = []
+        self.yaw_history = []
+
         # estado previo
         self.prev_velocity = None
         self.prev_timestamp = None
@@ -106,6 +110,8 @@ class CrashDetector:
         self.filtered_yaw = 0.0
         self.crash = False
         self.prev_acc = None
+        self.acc_history = []
+        self.yaw_history = []
 
     def is_crashed(self, info):
         vel = np.array(info["velocity"])
@@ -154,6 +160,9 @@ class CrashDetector:
 
         yaw_abs = abs(delta_w)
 
+        self.acc_history.append(acc_norm)
+        self.yaw_history.append(yaw_abs)
+
         # =========================
         # BUFFER
         # =========================
@@ -164,8 +173,8 @@ class CrashDetector:
         # =========================
 
 
-        H_acc = 50.0
-        H_yaw = 35.0
+        H_acc = 60.0
+        H_yaw = 50.0
         """
         print("Metricas")
         print(acc_norm, yaw_abs)
@@ -186,6 +195,10 @@ class CrashDetector:
         # =========================
         self.prev_velocity = vel
         self.prev_timestamp = t
+
+        if self.crash:
+            print(acc_norm, yaw_abs)
+
 
         return self.crash
 
