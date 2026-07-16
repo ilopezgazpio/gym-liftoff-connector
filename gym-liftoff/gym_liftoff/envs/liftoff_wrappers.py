@@ -7,6 +7,13 @@ import json
 import math
 import random
 
+from intrinsic_curiosity_based_driving.train import terminated
+from intrinsic_curiosity_based_driving.train_sac_time import episode
+from intrinsic_curiosity_based_driving.train_time_reward import truncated
+from random_position_driving.train import reward
+from sympy.physics.units import action, velocity
+
+
 class LiftoffWrapStability(gym.Wrapper):
     def __init__(self, env, ponderation = 0.3, delta_margin = True):
         super(LiftoffWrapStability, self).__init__(env)
@@ -102,20 +109,21 @@ class LiftoffWrapGyro(gym.Wrapper):
         return - self.ponderation*(gyro_norm**2)
 
 class LiftoffWrapAttitude(gym.Wrapper):
-    def __init__(self, env, ponderation = 0.1):
+    def __init__(self, env, ponderation = 1):
         super(LiftoffWrapAttitude, self).__init__(env)
         self.ponderation = ponderation
     def step(self, action):
         obs, reward, termianted, truncated, info = self.env.step(action)
-        reward += self.get_reward(info)
+        rew_attitude = self.get_reward(info)
+        reward += rew_attitude
         return obs, reward, termianted, truncated, info
+    def reset(self, seed = None, options = None):
+        return self.env.reset(seed = seed, options = options)
     def get_reward(self, info):
         rotation = info["rotation"]
         up_y = rotation[1, 1]
 
-        reward_attitude = 0.0
-        if up_y < 0.3:
-            reward_attitude = -1.0
+        reward_attitude = up_y - 1
 
         return self.ponderation*reward_attitude
 
@@ -207,6 +215,132 @@ class LiftoffWrapRandomPosition(gym.Wrapper):
         #print(self.past_distance["esc"], distance["esc"])
         reward = self.past_distance["esc"] - distance["esc"]
         return self.ponderation*reward
+
+class LiftoffWrapSpeed(gym.Wrapper):
+    def __init__(self, env, ponderation = 0.5):
+        super(LiftoffWrapSpeed, self).__init__(env)
+        self.ponderation = ponderation
+    def reset(self, seed = None, options = None):
+        return self.env.reset(seed = seed, options=options)
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action=action)
+        rew_speed = self.get_reward(info)
+        reward += rew_speed
+        return obs, reward, terminated, truncated, info
+    def get_reward(self, info):
+        return - abs(np.linalg.norm(info["velocity"]))
+
+class LiftoffWrapHovering(gym.Wrapper):
+    def __init__(self, env):
+        super(LiftoffWrapHovering, self).__init__(env)
+
+        continuous_env = LiftoffWrapContinuousAction(self.env)
+        gyro_env = LiftoffWrapGyro(continuous_env, ponderation=0.3)
+        act_env = LiftoffWrapStability(gyro_env, ponderation=0.1)
+        speed_env = LiftoffWrapSpeed(act_env, ponderation=0.5)
+        attitude_env = LiftoffWrapAttitude(speed_env, ponderation=0.8)
+
+        self.final_env = LiftoffWrapConstantTime(attitude_env)
+
+    def reset(self, seed = None, options = None):
+        obs, info = self.start_hovering(seed = seed, options = options)
+
+        self.hover_position = info["position"]
+
+        info["hover_position"] = np.zeros(4, dtype=np.float32)
+        info["relative_position"] = info["hover_position"].copy()
+
+        return obs, info
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.final_env.step(action = action)
+
+        terminated = terminated or self.__episode_terminated__(info)
+
+        position_reward = self.get_reward(info)
+
+        info["hover_position"] = np.zeros(4, dtype=np.float32)
+        info["relative_position"] = info["position"] - self.hover_position
+
+        reward += position_reward
+        return obs, reward, terminated, truncated, info
+
+    def __episode_terminated__(self, info):
+        position = info["position"]
+        up_y = info["rotation"][1, 1]
+        delta_position = position - self.hover_position
+        return np.linalg.norm(delta_position) > 0.8 or up_y < - 0.9
+
+    def get_reward(self, info):
+        position = info["position"]
+        z = position[1]
+        x = position [0]
+        y = position[2]
+        z_target = self.hover_position[1]
+        x_target = self.hover_position[0]
+        y_target = self.hover_position[2]
+        z_error = (z - z_target)**2
+        xy_error = (x - x_target)**2 + (y - y_target)**2
+        reward = -(1.5*z_error + 1*xy_error)
+        return reward
+
+    def start_hovering(self, seed = None, options = None):
+        Kp = 5.0
+        Ki = 0.2
+        Kd = 1.5
+        Kp_z = 3.0
+
+        TH_HOVER = 1024  # center of the controller. TODO: ADJUST TO YOU REQUIREMENTS
+        integral = 0.0
+        prev_error = 0.0
+
+        TH_MIN = 0
+        TH_MAX = 2047
+
+
+        _, info = self.final_env.reset(seed = seed, options = options)
+
+        z_target = info["position"][1] + 2
+
+        prev_timestamp = info["timestamp"]
+
+        dt = 0.02
+
+        episode_ready = False
+        stable_frames = 0
+
+        while not episode_ready:
+            vz = info["velocity"][1]
+            z = info["position"][1]
+
+            vz_target = Kp_z * (z_target - z)
+
+            error = vz_target - vz
+
+            integral += error * dt
+            derivative = (error - prev_error) / dt
+
+            u = Kp * error + Ki * integral + Kd * derivative
+
+            th = np.clip(TH_HOVER + u, TH_MIN, TH_MAX)
+
+            prev_error = error
+
+            action = [th, 1024, 1024, 1024]
+
+            obs, _, _, _, info = self.env.step(action)
+
+            dt = info["timestamp"] - prev_timestamp
+            prev_timestamp = info["timestamp"]
+
+            # TODO: SOLO DE PRUBA, LUEGO QUITAR
+            print("vz:", vz, "th:", th)
+
+            stable_frames += 1 if abs(error) < 0.1 and abs(vz) < 0.2 else 0
+            if stable_frames > 2:
+                episode_ready = True
+
+        return obs, info
 
 class LiftoffWrapObservation(gym.ObservationWrapper):
     def __init__(self, env, resizeX = 256, resizeY = 256, gray = False):
