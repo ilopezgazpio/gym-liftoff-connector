@@ -11,7 +11,7 @@ LOG_STD_MAX = 1
 EPS = 1e-6  # Action clipping
 TAU = 0.005  # Target update
 GAMMA = 0.97  # Discount
-ALPHA = 0.1    # Entropy coefficient
+ALPHA = 0.25    # Entropy coefficient
 
 class ActorSAC(nn.Module):
     def __init__(self, action_dim):
@@ -239,7 +239,7 @@ class Actor_Hovering(nn.Module):
         std = log_std.exp()
         return mu, std
 
-    def sample(self, obs, prev_action, telemetry):
+    def sample(self, prev_action, telemetry):
         z = torch.cat([prev_action, telemetry], dim = -1)
         mu, std = self.forward(z)
 
@@ -272,10 +272,10 @@ class Critic_Hovering(nn.Module):
         self.q1 = nn.Linear(256, 1)
         self.q2 = nn.Linear(256, 1)
 
-    def forward(self, obs, actions, telemetry):
+    def forward(self, actions, telemetry):
         actions_flat = actions.view(actions.shape[0], 2*self.action_dim)
-        x = torch.cat([actions_flat, telemetry], dim = -1)
-        z = self.fc(x)
+        x = torch.cat([actions_flat, telemetry.squeeze(1)], dim = -1)
+        z = self.net(x)
 
         return self.q1(z), self.q2(z)
 
@@ -429,10 +429,11 @@ def update_sac_hovering(actor, critic, critic_target, buffer, actor_opt, critic_
 
     with torch.no_grad():
         next_action, next_log_prob = actor.sample(act[:, t + n_steps - 1], tel[:, t + n_steps].squeeze(1))
+        #print(act[:, t + n_steps -1])
+        #print(act[:, t + n_steps -1: t + n_steps])
+        next_act_seq = torch.cat([act[:, t+n_steps-1].unsqueeze(1), next_action.unsqueeze(1)], dim = 1)
 
-        next_act_seq = torch.cat([act[:, -seq_len:-1], next_action.unsqueeze(1)], dim = 1)
-
-        next_tel_seq = tel[:, -seq_len:]
+        next_tel_seq = tel[:, -1]
 
         target_q1, target_q2 = critic_target(next_act_seq, next_tel_seq)
         target_q = torch.min(target_q1, target_q2).squeeze(-1) - ALPHA * next_log_prob
@@ -440,7 +441,7 @@ def update_sac_hovering(actor, critic, critic_target, buffer, actor_opt, critic_
         target_q = torch.clamp(target_q, -50, 50)
 
 
-    current_q1, current_q2 = critic(act[:, :seq_len], tel[:, :seq_len])
+    current_q1, current_q2 = critic(act[:, t-seq_len + 1:t+1], tel[:, t])
     current_q1 = current_q1.squeeze(-1)
     current_q2 = current_q2.squeeze(-1)
     critic_loss = F.mse_loss(current_q1, target_q) + F.mse_loss(current_q2, target_q)
@@ -454,7 +455,7 @@ def update_sac_hovering(actor, critic, critic_target, buffer, actor_opt, critic_
     new_action, log_prob = actor.sample(act[:, t - 1], tel[:, t])
 
     act_seq = torch.cat([act[:, t - seq_len + 1:t], new_action.unsqueeze(1)], dim = 1)
-    tel_seq = tel[:, t - seq_len + 1: t + 1]
+    tel_seq = tel[:, t]
 
     q1_new, q2_new = critic(act_seq, tel_seq)
     q1_new = q1_new.squeeze(-1)

@@ -174,8 +174,7 @@ class Liftoff(gym.Env):
         info = self._get_info()
         terminated= self.__episode_terminated__(info)
         reward = self._get_reward(terminated)
-        truncated = info["timestamp"] > self.max_episode_time if self.max_episode_time != None else False
-
+        truncated = info["timestamp"][0] > self.max_episode_time if self.max_episode_time != None else False
         if terminated or truncated:
             self._has_reset = False
 

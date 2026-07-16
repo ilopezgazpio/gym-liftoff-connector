@@ -14,7 +14,7 @@ current_dir = Path(__file__).resolve().parent
 lmdb_path = current_dir / "lmdb_episode"
 replay_buffer_path = current_dir / "replay_buffer_lmdb"
 info_path = current_dir / "infos"
-logs_path = current_dir.parent.parent/ "logs" / "training_sac_position_reward_logs.json"
+logs_path = current_dir.parent.parent/ "logs" / "training_sac_hovering.json"
 
 def save_last_episode(episode:int):
     with last_episode_saving_path.open("w") as f:
@@ -36,7 +36,7 @@ env = LiftoffWrapHovering(env = env)
 print("Observation space:", env.observation_space)
 print("Action space:", env.action_space)
 
-NUM_EPISODES = 40001
+NUM_EPISODES = 80001
 ACTION_DIM = 4
 BATCH_SIZE = 32
 
@@ -63,7 +63,9 @@ last_episode = 0
 
 try:
     last_episode = read_last_episode()
-    checkpoint = torch.load(models_dir / f"sac_models_optimizers_hovering_{last_episode}.pth")
+    checkpoint = torch.load(models_dir / f"sac_models_optimizers_position_{last_episode}.pth")
+
+    print("Modelos Cargados")
 
     actor.load_state_dict(checkpoint["models"]["actor"])
     critic.load_state_dict(checkpoint["models"]["critic"])
@@ -134,7 +136,6 @@ for episode in range(last_episode, NUM_EPISODES):
             info["relative_position"]
         ])
 
-
     while not done:
 
         action, log_prob = actor.sample(previous_action, torch.tensor(telemetry, dtype = torch.float32).unsqueeze(0).to(device))
@@ -142,6 +143,7 @@ for episode in range(last_episode, NUM_EPISODES):
         _, reward, terminated, truncated, info = env.step(action.squeeze(0).detach().cpu().numpy())
         done = terminated or truncated
         t = step
+
 
         replay_data = np.concatenate([
             action.detach().cpu().numpy().reshape(-1),
@@ -190,7 +192,7 @@ for episode in range(last_episode, NUM_EPISODES):
     episode_log = {
         "episode": episode,
         "steps": step,
-        "env_reward_total": float(sum(env_rewards_list)),
+        "env_reward_total": float(sum(env_rewards)),
         "actor_loss_mean": float(torch.tensor(actor_losses_list).mean()),
         "actor_loss_std": float(torch.tensor(actor_losses_list).std(unbiased=False)),
         "critic_loss_mean": float(torch.tensor(critic_losses_list).mean()),

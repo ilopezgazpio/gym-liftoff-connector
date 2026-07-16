@@ -3,14 +3,12 @@ import pickle
 import torch
 import random
 
-from intrinsic_curiosity_based_driving.train_sac_time import reward
-from random_position_driving.train import telemetry
 from .lmdb_utils import LMDBWriter
 import numpy as np
 from collections import deque
 
 class LMDBReplayBuffer:
-    def __init__(self, path, obs_shape = (1), act_size = 1, tel_size = 1, max_size = 40000,seq_len = 10, n_steps = 3, map_size=int(1e12), device='cuda', padding = True):
+    def __init__(self, path, obs_shape = [1], act_size = 1, tel_size = 1, max_size = 40000,seq_len = 10, n_steps = 3, map_size=int(1e12), device='cuda', padding = True):
         self.seq_len = seq_len
         self.n_steps = n_steps
         self.device = device
@@ -119,7 +117,7 @@ class LMDBReplayBuffer:
         obs = None
         action = None
         telemetry = None
-        if self.obs_shape is not None:
+        if self.obs_size is not None or self.obs_size != 1:
             obs = data[:self.obs_size].reshape(self.obs_shape)
             idx += self.obs_size
         if self.act_size is not None:

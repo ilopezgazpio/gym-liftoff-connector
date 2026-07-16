@@ -7,12 +7,6 @@ import json
 import math
 import random
 
-from intrinsic_curiosity_based_driving.train import terminated
-from intrinsic_curiosity_based_driving.train_sac_time import episode
-from intrinsic_curiosity_based_driving.train_time_reward import truncated
-from random_position_driving.train import reward
-from sympy.physics.units import action, velocity
-
 
 class LiftoffWrapStability(gym.Wrapper):
     def __init__(self, env, ponderation = 0.3, delta_margin = True):
@@ -228,7 +222,7 @@ class LiftoffWrapSpeed(gym.Wrapper):
         reward += rew_speed
         return obs, reward, terminated, truncated, info
     def get_reward(self, info):
-        return - abs(np.linalg.norm(info["velocity"]))
+        return - abs(np.linalg.norm(info["velocity"]) / 20)
 
 class LiftoffWrapHovering(gym.Wrapper):
     def __init__(self, env):
@@ -236,18 +230,21 @@ class LiftoffWrapHovering(gym.Wrapper):
 
         continuous_env = LiftoffWrapContinuousAction(self.env)
         gyro_env = LiftoffWrapGyro(continuous_env, ponderation=0.3)
-        act_env = LiftoffWrapStability(gyro_env, ponderation=0.1)
-        speed_env = LiftoffWrapSpeed(act_env, ponderation=0.5)
-        attitude_env = LiftoffWrapAttitude(speed_env, ponderation=0.8)
+        act_env = LiftoffWrapStability(gyro_env, ponderation=0.2)
+        speed_env = LiftoffWrapSpeed(act_env, ponderation=0.3)
+        attitude_env = LiftoffWrapAttitude(speed_env, ponderation=0.5)
 
         self.final_env = LiftoffWrapConstantTime(attitude_env)
 
     def reset(self, seed = None, options = None):
+        self.max_time = self.final_env.unwrapped.max_episode_time
+        self.final_env.unwrapped.max_episode_time = None
+
         obs, info = self.start_hovering(seed = seed, options = options)
 
         self.hover_position = info["position"]
-
-        info["hover_position"] = np.zeros(4, dtype=np.float32)
+        self.final_env.unwrapped.max_episode_time = self.max_time + info["timestamp"][0]
+        info["hover_position"] = np.zeros(3, dtype=np.float32)
         info["relative_position"] = info["hover_position"].copy()
 
         return obs, info
@@ -259,7 +256,7 @@ class LiftoffWrapHovering(gym.Wrapper):
 
         position_reward = self.get_reward(info)
 
-        info["hover_position"] = np.zeros(4, dtype=np.float32)
+        info["hover_position"] = np.zeros(3, dtype=np.float32)
         info["relative_position"] = info["position"] - self.hover_position
 
         reward += position_reward
@@ -269,7 +266,7 @@ class LiftoffWrapHovering(gym.Wrapper):
         position = info["position"]
         up_y = info["rotation"][1, 1]
         delta_position = position - self.hover_position
-        return np.linalg.norm(delta_position) > 0.8 or up_y < - 0.9
+        return np.linalg.norm(delta_position) > 1 or up_y < - 0.5
 
     def get_reward(self, info):
         position = info["position"]
@@ -281,22 +278,21 @@ class LiftoffWrapHovering(gym.Wrapper):
         y_target = self.hover_position[2]
         z_error = (z - z_target)**2
         xy_error = (x - x_target)**2 + (y - y_target)**2
-        reward = -(1.5*z_error + 1*xy_error)
+        reward = -(1*z_error + 0.5*xy_error)
         return reward
 
     def start_hovering(self, seed = None, options = None):
-        Kp = 5.0
-        Ki = 0.2
-        Kd = 1.5
-        Kp_z = 3.0
+        Kp = 3.0
+        Ki = 0.4
+        Kd = 2
+        Kp_z = 2.5
 
-        TH_HOVER = 1024  # center of the controller. TODO: ADJUST TO YOU REQUIREMENTS
+        th  = 1024  # center of the controller. TODO: ADJUST TO YOU REQUIREMENTS
         integral = 0.0
         prev_error = 0.0
 
         TH_MIN = 0
         TH_MAX = 2047
-
 
         _, info = self.final_env.reset(seed = seed, options = options)
 
@@ -322,19 +318,19 @@ class LiftoffWrapHovering(gym.Wrapper):
 
             u = Kp * error + Ki * integral + Kd * derivative
 
-            th = np.clip(TH_HOVER + u, TH_MIN, TH_MAX)
+            th = np.clip(th + u, TH_MIN, TH_MAX)
 
             prev_error = error
 
             action = [th, 1024, 1024, 1024]
 
-            obs, _, _, _, info = self.env.step(action)
+            obs, _, _, _, info = self.final_env.unwrapped.step(action)
 
             dt = info["timestamp"] - prev_timestamp
             prev_timestamp = info["timestamp"]
 
             # TODO: SOLO DE PRUBA, LUEGO QUITAR
-            print("vz:", vz, "th:", th)
+            #print("vz:", vz, "th:", th, "z:", z, z_target)
 
             stable_frames += 1 if abs(error) < 0.1 and abs(vz) < 0.2 else 0
             if stable_frames > 2:
