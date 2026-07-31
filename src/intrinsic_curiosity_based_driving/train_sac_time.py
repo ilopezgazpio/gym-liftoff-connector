@@ -216,7 +216,6 @@ for episode in range(last_episode, NUM_EPISODES):
     last_step = {"img": obs, "step": step}
     writer.put(last_step)
     writer.close()
-    continue
     del previous_action
     del reward
     del info
